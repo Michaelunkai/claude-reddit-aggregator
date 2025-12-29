@@ -90,7 +90,24 @@ async function getRedditToken() {
 // Fetch posts from a subreddit with retry logic
 async function fetchSubredditPosts(subreddit, token, retries = 3) {
     const startTime = Date.now();
-    const keywords = ['claude', 'claude code', 'anthropic', 'ai coding', 'ai assistant'];
+    // Enhanced keywords focused on Claude Code usage, tips, tutorials, and workflows
+    const keywords = [
+        'claude code', 'claude', 'anthropic',
+        // Claude Code specific terms
+        'claude agent', 'claude sdk', 'mcp server', 'claude api',
+        // Usage and improvement terms
+        'how to use', 'tutorial', 'workflow', 'productivity', 'tips', 'tricks',
+        'best practices', 'use case', 'example', 'guide', 'setup',
+        // Coding assistance terms
+        'coding assistant', 'ai coding', 'code generation', 'refactoring',
+        'debugging', 'code review', 'pair programming',
+        // Integration and tools
+        'integration', 'vscode', 'cursor', 'windsurf', 'ide',
+        'automation', 'prompt engineering'
+    ];
+
+    // Exclude terms to filter out garbage
+    const excludeTerms = ['drama', 'controversy', 'lawsuit', 'complaint', 'rant'];
 
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
@@ -123,13 +140,21 @@ async function fetchSubredditPosts(subreddit, token, retries = 3) {
 
                 const titleLower = post.title.toLowerCase();
                 const bodyLower = (post.selftext || '').toLowerCase();
+                const combinedText = titleLower + ' ' + bodyLower;
+
+                // Check for exclude terms (filter out garbage)
+                const hasExcludeTerm = excludeTerms.some(term =>
+                    combinedText.includes(term.toLowerCase())
+                );
+                if (hasExcludeTerm) return false;
+
                 const hasKeyword = keywords.some(kw =>
                     titleLower.includes(kw.toLowerCase()) ||
                     bodyLower.includes(kw.toLowerCase())
                 );
 
-                // For Claude-specific subreddits, include all posts
-                if (['claude', 'claudeai', 'claudedev', 'anthropicai'].includes(subreddit.toLowerCase())) {
+                // For Claude-specific subreddits, include all posts (except those with exclude terms)
+                if (['claude', 'claudeai', 'claudedev', 'claudecode', 'claudexplorers', 'anthropicai'].includes(subreddit.toLowerCase())) {
                     return true;
                 }
 
@@ -175,7 +200,7 @@ async function fetchSubredditPosts(subreddit, token, retries = 3) {
 
 // Fetch posts from all subreddits
 async function fetchAllPosts() {
-    const subreddits = ['ClaudeAI', 'claude', 'claudedev', 'AnthropicAI', 'OpenAI', 'MachineLearning', 'LocalLLaMA', 'artificial', 'singularity', 'ChatGPT', 'Bard', 'bing', 'perplexity_ai'];
+    const subreddits = ['ClaudeAI', 'claude', 'claudedev', 'claudecode', 'claudexplorers', 'AnthropicAI', 'OpenAI', 'MachineLearning', 'LocalLLaMA', 'artificial', 'singularity', 'ChatGPT', 'Bard', 'bing', 'perplexity_ai'];
     const token = await getRedditToken();
 
     log('info', 'Starting fetch from all subreddits', { subreddits });

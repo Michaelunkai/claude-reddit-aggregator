@@ -87,6 +87,8 @@ function PostCard({ post, isFavorite, onToggleFavorite, isSelected, onSelect, sh
         'ClaudeAI': 'from-purple-500 to-violet-600',
         'claude': 'from-purple-400 to-purple-600',
         'claudedev': 'from-indigo-500 to-purple-600',
+        'claudecode': 'from-violet-500 to-fuchsia-600',
+        'claudexplorers': 'from-purple-600 to-indigo-700',
         'AnthropicAI': 'from-pink-500 to-rose-600',
         'OpenAI': 'from-green-500 to-emerald-600',
         'ChatGPT': 'from-teal-500 to-cyan-600',

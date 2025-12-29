@@ -2,6 +2,7 @@ services:
   - type: web
     name: claude-reddit-aggregator
     runtime: node
+    branch: claude/curate-claude-resources-JJwx5
     buildCommand: npm install && npm run build
     startCommand: node server.js
     envVars:

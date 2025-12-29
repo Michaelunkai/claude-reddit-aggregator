@@ -84,14 +84,23 @@ function PostCard({ post, isFavorite, onToggleFavorite, isSelected, onSelect, sh
         : '';
 
     const subredditColors = {
+        // Primary Claude Code subreddits
         'ClaudeAI': 'from-purple-500 to-violet-600',
+        'claudecode': 'from-orange-500 to-red-500',
+        'claudexplorers': 'from-cyan-500 to-purple-600',
         'claude': 'from-purple-400 to-purple-600',
         'claudedev': 'from-indigo-500 to-purple-600',
         'AnthropicAI': 'from-pink-500 to-rose-600',
+        // AI Coding subreddits
+        'aicoding': 'from-green-500 to-teal-600',
+        'CursorAI': 'from-blue-500 to-indigo-600',
+        'Codeium': 'from-emerald-500 to-green-600',
+        'ChatGPTCoding': 'from-teal-500 to-cyan-600',
+        'LocalLLaMA': 'from-orange-500 to-amber-600',
+        'MachineLearning': 'from-blue-500 to-indigo-600',
+        // Legacy (for any existing data)
         'OpenAI': 'from-green-500 to-emerald-600',
         'ChatGPT': 'from-teal-500 to-cyan-600',
-        'MachineLearning': 'from-blue-500 to-indigo-600',
-        'LocalLLaMA': 'from-orange-500 to-amber-600',
         'artificial': 'from-cyan-500 to-blue-600',
         'singularity': 'from-fuchsia-500 to-pink-600',
         'Bard': 'from-yellow-500 to-orange-600',
@@ -678,9 +687,9 @@ export default function App() {
                             </div>
                             <div>
                                 <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">
-                                    Claude Reddit Aggregator
+                                    Claude Code Aggregator
                                 </h1>
-                                <p className="text-sm text-gray-400">Real-time AI news from Reddit</p>
+                                <p className="text-sm text-gray-400">Real-time Claude Code tips, workflows & best practices</p>
                             </div>
                         </div>
 
@@ -1008,7 +1017,7 @@ export default function App() {
                                 </svg>
                             </div>
                             <span className="text-gray-400 text-sm">
-                                Claude Reddit Aggregator | Real-time AI news aggregation
+                                Claude Code Aggregator | Tips, workflows & best practices
                             </span>
                         </div>
                         <div className="flex items-center space-x-4 text-sm text-gray-500">

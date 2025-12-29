@@ -90,7 +90,65 @@ async function getRedditToken() {
 // Fetch posts from a subreddit with retry logic
 async function fetchSubredditPosts(subreddit, token, retries = 3) {
     const startTime = Date.now();
-    const keywords = ['claude', 'claude code', 'anthropic', 'ai coding', 'ai assistant'];
+
+    // Keywords focused on practical Claude Code usage and tips
+    const claudeCodeKeywords = [
+        'claude code',
+        'claude-code',
+        'claude cli',
+        'claude terminal',
+        'claude agent',
+        'claude sdk',
+        'claude mcp',
+        'mcp server',
+        'mcp tool',
+        'anthropic api',
+        'claude api'
+    ];
+
+    // Practical usage keywords - tips, workflows, tricks
+    const usageKeywords = [
+        'tip',
+        'trick',
+        'workflow',
+        'how to',
+        'how i',
+        'best practice',
+        'setup',
+        'configure',
+        'tutorial',
+        'guide',
+        'prompt engineering',
+        'system prompt',
+        'custom instruction',
+        'agentic',
+        'automate',
+        'automation',
+        'productivity',
+        'efficient',
+        'coding with',
+        'using claude',
+        'claude for',
+        'vscode',
+        'vs code',
+        'neovim',
+        'vim',
+        'terminal',
+        'cli',
+        'command line',
+        'bash',
+        'shell',
+        'script',
+        'project',
+        'codebase',
+        'refactor',
+        'debug',
+        'test',
+        'review'
+    ];
+
+    // Combine for general matching
+    const keywords = [...claudeCodeKeywords, 'claude', 'anthropic'];
 
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
@@ -117,23 +175,77 @@ async function fetchSubredditPosts(subreddit, token, retries = 3) {
 
             // Filter posts from last 30 days containing Claude-related keywords
             const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+
+            // Claude-specific subreddits (include all posts but prioritize useful ones)
+            const claudeSubreddits = ['claude', 'claudeai', 'claudedev', 'anthropicai', 'claudecode', 'claudexplorers'];
+
             const filteredPosts = posts.filter(post => {
                 const postTime = post.created_utc * 1000;
                 if (postTime < thirtyDaysAgo) return false;
 
+                // Skip low-quality indicators
                 const titleLower = post.title.toLowerCase();
                 const bodyLower = (post.selftext || '').toLowerCase();
-                const hasKeyword = keywords.some(kw =>
-                    titleLower.includes(kw.toLowerCase()) ||
-                    bodyLower.includes(kw.toLowerCase())
+                const combinedText = titleLower + ' ' + bodyLower;
+
+                // Filter out low-quality content
+                const lowQualityIndicators = [
+                    'just venting',
+                    'rant',
+                    'unpopular opinion',
+                    'am i the only',
+                    'anyone else annoyed',
+                    'subscription',
+                    'pricing complaint',
+                    'rate limit',
+                    'rate-limit',
+                    'down again',
+                    'is claude down',
+                    'outage',
+                    'not working',
+                    'broken',
+                    'frustrated',
+                    'disappointed',
+                    'worst',
+                    'terrible',
+                    'garbage',
+                    'useless',
+                    'waste of money'
+                ];
+
+                const isLowQuality = lowQualityIndicators.some(indicator =>
+                    combinedText.includes(indicator)
                 );
 
-                // For Claude-specific subreddits, include all posts
-                if (['claude', 'claudeai', 'claudedev', 'anthropicai'].includes(subreddit.toLowerCase())) {
+                // Check for practical/useful content indicators
+                const hasClaudeCodeKeyword = claudeCodeKeywords.some(kw =>
+                    combinedText.includes(kw.toLowerCase())
+                );
+
+                const hasUsageKeyword = usageKeywords.some(kw =>
+                    combinedText.includes(kw.toLowerCase())
+                );
+
+                const hasGeneralKeyword = keywords.some(kw =>
+                    combinedText.includes(kw.toLowerCase())
+                );
+
+                // For Claude-specific subreddits
+                if (claudeSubreddits.includes(subreddit.toLowerCase())) {
+                    // Skip obvious low-quality content
+                    if (isLowQuality && !hasClaudeCodeKeyword && !hasUsageKeyword) {
+                        return false;
+                    }
+                    // Prioritize posts about Claude Code usage
                     return true;
                 }
 
-                return hasKeyword;
+                // For other subreddits, require Claude keyword + prefer useful content
+                if (hasClaudeCodeKeyword) return true;
+                if (hasGeneralKeyword && hasUsageKeyword) return true;
+                if (hasGeneralKeyword && !isLowQuality) return true;
+
+                return false;
             });
 
             const duration = Date.now() - startTime;
@@ -175,7 +287,27 @@ async function fetchSubredditPosts(subreddit, token, retries = 3) {
 
 // Fetch posts from all subreddits
 async function fetchAllPosts() {
-    const subreddits = ['ClaudeAI', 'claude', 'claudedev', 'AnthropicAI', 'OpenAI', 'MachineLearning', 'LocalLLaMA', 'artificial', 'singularity', 'ChatGPT', 'Bard', 'bing', 'perplexity_ai'];
+    // Primary Claude Code subreddits (prioritized)
+    const claudeCodeSubreddits = [
+        'ClaudeAI',           // Main Claude AI subreddit
+        'claudecode',         // Claude Code specific
+        'claudexplorers',     // Claude explorers community
+        'claude',             // General Claude
+        'claudedev',          // Claude development
+        'AnthropicAI'         // Official Anthropic
+    ];
+
+    // Secondary AI/coding subreddits for broader context
+    const aiCodingSubreddits = [
+        'aicoding',           // AI coding general
+        'CursorAI',           // Cursor AI editor
+        'Codeium',            // Codeium AI
+        'ChatGPTCoding',      // ChatGPT for coding
+        'LocalLLaMA',         // Local LLMs
+        'MachineLearning'     // ML general
+    ];
+
+    const subreddits = [...claudeCodeSubreddits, ...aiCodingSubreddits];
     const token = await getRedditToken();
 
     log('info', 'Starting fetch from all subreddits', { subreddits });

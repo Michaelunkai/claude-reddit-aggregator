@@ -90,24 +90,27 @@ async function getRedditToken() {
 // Fetch posts from a subreddit with retry logic
 async function fetchSubredditPosts(subreddit, token, retries = 3) {
     const startTime = Date.now();
-    // Enhanced keywords focused on Claude Code usage, tips, tutorials, and workflows
-    const keywords = [
-        'claude code', 'claude', 'anthropic',
-        // Claude Code specific terms
-        'claude agent', 'claude sdk', 'mcp server', 'claude api',
-        // Usage and improvement terms
-        'how to use', 'tutorial', 'workflow', 'productivity', 'tips', 'tricks',
-        'best practices', 'use case', 'example', 'guide', 'setup',
-        // Coding assistance terms
-        'coding assistant', 'ai coding', 'code generation', 'refactoring',
-        'debugging', 'code review', 'pair programming',
-        // Integration and tools
-        'integration', 'vscode', 'cursor', 'windsurf', 'ide',
-        'automation', 'prompt engineering'
+
+    // STRICT: Must mention Claude or Anthropic
+    const requiredTerms = ['claude', 'anthropic'];
+
+    // Claude Code specific enhancement terms
+    const enhancementTerms = [
+        'claude code', 'claude api', 'claude agent', 'claude sdk',
+        'mcp server', 'mcp', 'model context protocol',
+        'tutorial', 'how to', 'guide', 'workflow', 'productivity',
+        'tips', 'tricks', 'best practices', 'use case', 'example',
+        'integration', 'automation', 'prompt engineering',
+        'cursor', 'windsurf', 'vscode', 'ide',
+        'coding', 'development', 'programming'
     ];
 
-    // Exclude terms to filter out garbage
-    const excludeTerms = ['drama', 'controversy', 'lawsuit', 'complaint', 'rant'];
+    // Exclude non-relevant content
+    const excludeTerms = [
+        'drama', 'controversy', 'lawsuit', 'complaint', 'rant',
+        'vs gpt', 'vs chatgpt', 'better than', 'worse than',
+        'pricing', 'subscription', 'cost', 'expensive'
+    ];
 
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
@@ -132,7 +135,7 @@ async function fetchSubredditPosts(subreddit, token, retries = 3) {
             const data = token ? response.data : response.data;
             const posts = data.data.children.map(child => child.data);
 
-            // Filter posts from last 30 days containing Claude-related keywords
+            // ULTRA-STRICT FILTERING: Only Claude/Anthropic content
             const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
             const filteredPosts = posts.filter(post => {
                 const postTime = post.created_utc * 1000;
@@ -142,23 +145,29 @@ async function fetchSubredditPosts(subreddit, token, retries = 3) {
                 const bodyLower = (post.selftext || '').toLowerCase();
                 const combinedText = titleLower + ' ' + bodyLower;
 
-                // Check for exclude terms (filter out garbage)
+                // MUST mention Claude or Anthropic
+                const hasRequiredTerm = requiredTerms.some(term =>
+                    combinedText.includes(term.toLowerCase())
+                );
+                if (!hasRequiredTerm) return false;
+
+                // Must NOT contain exclude terms
                 const hasExcludeTerm = excludeTerms.some(term =>
                     combinedText.includes(term.toLowerCase())
                 );
                 if (hasExcludeTerm) return false;
 
-                const hasKeyword = keywords.some(kw =>
-                    titleLower.includes(kw.toLowerCase()) ||
-                    bodyLower.includes(kw.toLowerCase())
-                );
-
-                // For Claude-specific subreddits, include all posts (except those with exclude terms)
+                // For Claude-specific subreddits, any Claude/Anthropic mention is good
                 if (['claude', 'claudeai', 'claudedev', 'claudecode', 'claudexplorers', 'anthropicai'].includes(subreddit.toLowerCase())) {
                     return true;
                 }
 
-                return hasKeyword;
+                // For other subreddits, require enhancement terms too
+                const hasEnhancementTerm = enhancementTerms.some(term =>
+                    combinedText.includes(term.toLowerCase())
+                );
+
+                return hasEnhancementTerm;
             });
 
             const duration = Date.now() - startTime;
@@ -200,7 +209,15 @@ async function fetchSubredditPosts(subreddit, token, retries = 3) {
 
 // Fetch posts from all subreddits
 async function fetchAllPosts() {
-    const subreddits = ['ClaudeAI', 'claude', 'claudedev', 'claudecode', 'claudexplorers', 'AnthropicAI', 'OpenAI', 'MachineLearning', 'LocalLLaMA', 'artificial', 'singularity', 'ChatGPT', 'Bard', 'bing', 'perplexity_ai'];
+    // ONLY Claude and Anthropic-focused subreddits
+    const subreddits = [
+        'ClaudeAI',           // Main Claude community
+        'claude',             // General Claude discussions
+        'claudedev',          // Claude development
+        'claudecode',         // Claude Code specific
+        'claudexplorers',     // Claude power users
+        'AnthropicAI'         // Anthropic official
+    ];
     const token = await getRedditToken();
 
     log('info', 'Starting fetch from all subreddits', { subreddits });

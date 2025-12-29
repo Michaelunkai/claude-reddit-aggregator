@@ -57,7 +57,7 @@ function TrendingBadge({ rank }) {
         3: 'from-amber-600 to-amber-700'
     };
     return (
-        <div className={`absolute -top-2 -left-2 w-8 h-8 rounded-full bg-gradient-to-br ${colors[rank] || 'from-purple-500 to-pink-500'} flex items-center justify-center text-white text-xs font-bold shadow-lg z-10`}>
+        <div className={`absolute -top-2 -left-2 w-8 h-8 rounded-full bg-gradient-to-br ${colors[rank] || 'from-orange-500 to-amber-600'} flex items-center justify-center text-white text-xs font-bold shadow-lg z-10`}>
             #{rank}
         </div>
     );
@@ -240,7 +240,7 @@ function PostModal({ post, isOpen, onClose, isFavorite, onToggleFavorite }) {
 
                     {/* Subreddit and actions */}
                     <div className="flex items-center justify-between mb-4">
-                        <span className="px-4 py-1.5 rounded-full text-sm font-semibold bg-gradient-to-r from-purple-500 to-pink-500 text-white">
+                        <span className="px-4 py-1.5 rounded-full text-sm font-semibold bg-gradient-to-r from-orange-500 to-amber-600 text-white">
                             r/{post.subreddit}
                         </span>
                         <div className="flex items-center space-x-2">
@@ -320,7 +320,7 @@ function SubredditChips({ subreddits, selected, onSelect }) {
                 onClick={() => onSelect('')}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                     selected === ''
-                        ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30'
+                        ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-lg shadow-orange-500/30'
                         : 'bg-white/10 text-gray-300 hover:bg-white/20'
                 }`}
             >
@@ -332,7 +332,7 @@ function SubredditChips({ subreddits, selected, onSelect }) {
                     onClick={() => onSelect(sub.name)}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center space-x-1.5 ${
                         selected === sub.name
-                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30'
+                            ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-lg shadow-orange-500/30'
                             : 'bg-white/10 text-gray-300 hover:bg-white/20'
                     }`}
                 >
@@ -401,7 +401,7 @@ function KeyboardShortcuts({ isOpen, onClose }) {
                 </div>
                 <button
                     onClick={onClose}
-                    className="mt-6 w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium hover:opacity-90 transition-opacity"
+                    className="mt-6 w-full py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 text-white font-medium hover:opacity-90 transition-opacity"
                 >
                     Got it!
                 </button>
@@ -660,11 +660,12 @@ export default function App() {
     }, [selectedIndex]);
 
     return (
-        <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900' : 'bg-gradient-to-br from-gray-50 via-purple-50 to-pink-50'}`}>
-            {/* Animated background elements */}
+        <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-900 via-orange-950/30 to-slate-900' : 'bg-gradient-to-br from-orange-50 via-amber-50 to-orange-100'}`}>
+            {/* Claude-themed animated background */}
             <div className="fixed inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-float"></div>
-                <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-pink-500/20 rounded-full blur-3xl animate-float-delayed"></div>
+                <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-orange-500/20 rounded-full blur-3xl animate-float"></div>
+                <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-amber-600/20 rounded-full blur-3xl animate-float-delayed"></div>
+                <div className="absolute top-1/2 right-1/3 w-64 h-64 bg-orange-400/10 rounded-full blur-3xl animate-float"></div>
             </div>
 
             {/* Header */}
@@ -673,16 +674,16 @@ export default function App() {
                     <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                         {/* Logo and title */}
                         <div className="flex items-center space-x-4">
-                            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30 animate-glow">
-                                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                            <div className="w-12 h-12 bg-gradient-to-br from-orange-500 via-amber-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/40 animate-glow">
+                                <svg className="w-7 h-7 text-white font-bold" viewBox="0 0 24 24" fill="currentColor">
+                                    <text x="4" y="18" fontSize="16" fontWeight="bold" fontFamily="system-ui">C</text>
                                 </svg>
                             </div>
                             <div>
-                                <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">
-                                    Claude Reddit Aggregator
+                                <h1 className="text-2xl font-bold bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 bg-clip-text text-transparent">
+                                    Claude Code Community Hub
                                 </h1>
-                                <p className="text-sm text-gray-400">Real-time AI news from Reddit</p>
+                                <p className="text-sm text-gray-400">Real-time Claude & Claude Code insights from Reddit</p>
                             </div>
                         </div>
 
@@ -792,7 +793,7 @@ export default function App() {
                     <div className="flex items-center space-x-2 mb-5">
                         <button
                             onClick={() => setView('grid')}
-                            className={`px-5 py-2.5 rounded-xl font-medium transition-all ${view === 'grid' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+                            className={`px-5 py-2.5 rounded-xl font-medium transition-all ${view === 'grid' ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
                         >
                             <span className="flex items-center space-x-2">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1004,21 +1005,21 @@ export default function App() {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                         <div className="flex items-center space-x-3">
-                            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                            <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg flex items-center justify-center">
+                                <svg className="w-5 h-5 text-white font-bold" viewBox="0 0 24 24" fill="currentColor">
+                                    <text x="6" y="17" fontSize="14" fontWeight="bold" fontFamily="system-ui">C</text>
                                 </svg>
                             </div>
                             <span className="text-gray-400 text-sm">
-                                Claude Reddit Aggregator | Real-time AI news aggregation
+                                Claude Code Community Hub | Your source for Claude & Claude Code insights
                             </span>
                         </div>
                         <div className="flex items-center space-x-4 text-sm text-gray-500">
                             <span>Auto-refresh every 5 minutes</span>
                             <span>|</span>
-                            <span>Posts from last 30 days</span>
+                            <span>Claude-focused content only</span>
                             <span>|</span>
-                            <span>Press <kbd className="px-2 py-0.5 rounded bg-white/10 text-purple-400">?</kbd> for shortcuts</span>
+                            <span>Press <kbd className="px-2 py-0.5 rounded bg-white/10 text-orange-400">?</kbd> for shortcuts</span>
                         </div>
                     </div>
                 </div>

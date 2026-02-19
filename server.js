@@ -732,7 +732,8 @@ app.get('/api/debug/reddit', async (req, res) => {
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve React app for all other routes (catch-all for SPA — must be LAST)
-app.get('*', (req, res) => {
+// Express v5 requires named parameter syntax for wildcards
+app.get('/{*path}', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 

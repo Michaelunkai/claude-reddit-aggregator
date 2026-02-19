@@ -97,13 +97,18 @@ const TOPIC_KEYWORDS = [
 ];
 
 // Subreddits where ALL posts are included (no keyword filter)
-const DEDICATED_SUBS = new Set(['claude', 'claudeai', 'claudedev', 'anthropicai', 'claudecode']);
+const DEDICATED_SUBS = new Set([
+    'claude', 'claudeai', 'claudedev', 'anthropicai', 'claudecode',
+    'aicoding', 'aiagents',
+]);
 
 // ── Hacker News ─────────────────────────────────────────────────────────────
 async function fetchHackerNews() {
     const queries = [
-        'claude anthropic', 'claude code', 'openclaw', 'moltbot', 'clawdbot',
-        'anthropic AI', 'claude AI assistant', 'clawhub', 'anthropic model',
+        'claude anthropic', 'claude code', 'anthropic model', 'claude AI',
+        'openclaw', 'moltbot', 'clawdbot', 'clawhub',
+        'anthropic sonnet', 'anthropic opus', 'anthropic haiku',
+        'claude 3', 'claude 4', 'MCP model context protocol',
     ];
     const results = [];
     const seen = new Set();
@@ -179,16 +184,17 @@ async function fetchGitHub() {
 
 // ── Dev.to ───────────────────────────────────────────────────────────────────
 async function fetchDevTo() {
-    // Fetch by tag — all of these are directly relevant, no extra filtering needed
     const tagFetches = [
         { tag: 'claude',       relevant: true },
         { tag: 'anthropic',    relevant: true },
         { tag: 'claudeai',     relevant: true },
         { tag: 'claudecode',   relevant: true },
-        { tag: 'aitools',      relevant: false }, // filter
-        { tag: 'llm',          relevant: false }, // filter
-        { tag: 'aiagents',     relevant: false }, // filter
-        { tag: 'mcp',          relevant: false }, // filter
+        { tag: 'aitools',      relevant: false },
+        { tag: 'llm',          relevant: false },
+        { tag: 'aiagents',     relevant: false },
+        { tag: 'mcp',          relevant: false },
+        { tag: 'artificialintelligence', relevant: false },
+        { tag: 'machinelearning', relevant: false },
     ];
     const results = [];
     const seen = new Set();
@@ -225,63 +231,56 @@ async function fetchDevTo() {
     return results;
 }
 
-// ── Anthropic Blog RSS ───────────────────────────────────────────────────────
+// ── Anthropic Blog (scraper — no RSS available) ──────────────────────────────
 async function fetchAnthropicBlog() {
-    // Try multiple URLs in case one changes
-    const feedUrls = [
-        'https://www.anthropic.com/rss.xml',
-        'https://www.anthropic.com/news/rss.xml',
-    ];
-    for (const feedUrl of feedUrls) {
-        try {
-            const resp = await axios.get(feedUrl, {
-                timeout: 10000,
-                headers: { 'User-Agent': 'ClaudeAggregator/2.0', 'Accept': 'application/rss+xml, application/xml, text/xml' },
-            });
-            const xml = resp.data;
-            const items = (xml.match(/<item>([\s\S]*?)<\/item>/g) || []).slice(0, 20);
-            if (items.length === 0) continue;
-            const posts = items.map((item, idx) => {
-                const getField = (re1, re2) => (item.match(re1) || item.match(re2) || [])[1] || '';
-                const title = getField(/<title><!\[CDATA\[(.*?)\]\]>/, /<title>(.*?)<\/title>/) || 'Anthropic Update';
-                const link  = getField(/<link>(.*?)<\/link>/, /<guid>(.*?)<\/guid>/) || 'https://www.anthropic.com/news';
-                const desc  = getField(/<description><!\[CDATA\[(.*?)\]\]>/, /<description>(.*?)<\/description>/).replace(/<[^>]+>/g, '').substring(0, 600);
-                const pub   = getField(/<pubDate>(.*?)<\/pubDate>/, /<dc:date>(.*?)<\/dc:date>/);
-                return {
-                    reddit_id: `anthropic_blog_${idx}`,
-                    title,
-                    content: desc,
-                    author: 'Anthropic',
-                    subreddit: 'AnthropicBlog',
-                    upvotes: 9999,
-                    num_comments: 0,
-                    created_at: pub ? new Date(pub).toISOString() : new Date().toISOString(),
-                    url: link.trim(),
-                    source: 'anthropic',
-                };
-            });
-            log('info', `Anthropic blog: fetched ${posts.length} posts from ${feedUrl}`);
-            return posts;
-        } catch (e) { log('warn', `Anthropic blog failed: ${feedUrl}`, { error: e.message }); }
-    }
-    // Fallback: scrape news page titles if RSS is down
     try {
-        const resp = await axios.get('https://www.anthropic.com/news', { timeout: 10000, headers: { 'User-Agent': 'ClaudeAggregator/2.0' } });
-        const titles = [...(resp.data.matchAll(/<h[23][^>]*>(.*?)<\/h[23]>/gs) || [])].slice(0, 10).map(m => m[1].replace(/<[^>]+>/g, '').trim()).filter(Boolean);
-        log('info', `Anthropic blog fallback: scraped ${titles.length} titles`);
-        return titles.map((title, idx) => ({
-            reddit_id: `anthropic_news_${idx}`,
-            title,
-            content: 'Visit anthropic.com/news for the full article.',
-            author: 'Anthropic',
-            subreddit: 'AnthropicBlog',
-            upvotes: 9990 - idx,
-            num_comments: 0,
-            created_at: new Date().toISOString(),
-            url: 'https://www.anthropic.com/news',
-            source: 'anthropic',
-        }));
-    } catch (e2) { log('warn', 'Anthropic fallback also failed', { error: e2.message }); return []; }
+        const resp = await axios.get('https://www.anthropic.com/news', {
+            timeout: 12000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            },
+        });
+        const html = resp.data;
+
+        // Extract article slugs from /news/slug links
+        const slugMatches = [...new Set(
+            [...html.matchAll(/href="(\/news\/[^"#?]+)"/g)].map(m => m[1])
+        )].filter(s => s.length > 8).slice(0, 20);
+
+        if (slugMatches.length === 0) {
+            log('warn', 'Anthropic scraper: no slugs found');
+            return [];
+        }
+
+        // For each slug, try to get title from the page or infer from slug
+        const posts = slugMatches.map((slug, idx) => {
+            // Convert slug to readable title: /news/claude-sonnet-4-5 -> Claude Sonnet 4.5
+            const title = slug.replace('/news/', '')
+                .replace(/-/g, ' ')
+                .replace(/\b\w/g, c => c.toUpperCase())
+                .replace(/(\d+)\.(\d+)/, '$1.$2');
+
+            return {
+                reddit_id: `anthropic_${slug.replace('/news/', '').replace(/[^a-z0-9]/gi, '_')}`,
+                title: `[Anthropic] ${title}`,
+                content: `Official Anthropic announcement. Read the full article at anthropic.com`,
+                author: 'Anthropic',
+                subreddit: 'AnthropicBlog',
+                upvotes: 9999 - idx,
+                num_comments: 0,
+                created_at: new Date().toISOString(),
+                url: `https://www.anthropic.com${slug}`,
+                source: 'anthropic',
+            };
+        });
+
+        log('info', `Anthropic blog: scraped ${posts.length} articles`);
+        return posts;
+    } catch (e) {
+        log('warn', 'Anthropic blog scrape failed', { error: e.message });
+        return [];
+    }
 }
 
 // ── Curated official resource cards ─────────────────────────────────────────
@@ -399,18 +398,22 @@ async function fetchAllPosts() {
     try {
 
     const subreddits = [
-        // Claude / Anthropic dedicated — all posts included
+        // Claude / Anthropic — dedicated (all posts included, no keyword filter)
         'ClaudeAI', 'claude', 'claudedev', 'AnthropicAI', 'ClaudeCode',
-        // AI coding tools
-        'AICoding', 'vibecoding', 'cursor_ai', 'AIdev', 'ArtificialIntelligence',
-        'GPT4', 'Bing', 'perplexity_ai', 'aipromptprogramming',
-        // AI agents / MCP
-        'AIAgents', 'PromptEngineering', 'LangChain', 'AutoGPT',
-        // General AI
+        // AI coding & tools
+        'AICoding', 'vibecoding', 'cursor_ai', 'AIdev', 'GithubCopilot',
+        'ChatGPTCoding', 'aipromptprogramming',
+        // AI agents / automation
+        'AIAgents', 'PromptEngineering', 'LangChain', 'AutoGPT', 'n8n',
+        'ChatGPTAutomation',
+        // AI models / general
         'OpenAI', 'MachineLearning', 'LocalLLaMA', 'artificial', 'singularity',
-        'ChatGPT', 'Bard', 'learnmachinelearning', 'deeplearning',
+        'ChatGPT', 'Bard', 'perplexity_ai', 'GPT4', 'Gemini',
+        'ArtificialIntelligence',
+        // Learning
+        'learnmachinelearning', 'deeplearning', 'learnprogramming',
         // Tech / Dev
-        'programming', 'webdev', 'learnprogramming', 'compsci', 'technology',
+        'programming', 'webdev', 'compsci', 'technology', 'SoftwareEngineering',
         // Discord / bots
         'discordapp', 'Discord_Bots',
     ];

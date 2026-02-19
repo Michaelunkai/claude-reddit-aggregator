@@ -618,13 +618,23 @@ export default function App() {
     // Subreddit stats
     // All subreddits always shown — not dependent on current DB contents
     const ALL_SUBREDDITS = [
+        // Claude / Anthropic — dedicated
         'ClaudeAI','claude','claudedev','AnthropicAI','ClaudeCode',
-        'AICoding','vibecoding','cursor_ai','AIdev','ArtificialIntelligence',
-        'GPT4','perplexity_ai','aipromptprogramming',
-        'AIAgents','PromptEngineering','LangChain','AutoGPT',
+        // AI coding & tools
+        'AICoding','vibecoding','cursor_ai','AIdev','GithubCopilot',
+        'ChatGPTCoding','aipromptprogramming',
+        // AI agents / automation
+        'AIAgents','PromptEngineering','LangChain','AutoGPT','n8n',
+        'ChatGPTAutomation',
+        // AI models / general
         'OpenAI','MachineLearning','LocalLLaMA','artificial','singularity',
-        'ChatGPT','Bard','learnmachinelearning','deeplearning',
-        'programming','webdev','learnprogramming','compsci','technology',
+        'ChatGPT','Bard','perplexity_ai','GPT4','Gemini','StableDiffusion',
+        'ArtificialIntelligence',
+        // Learning
+        'learnmachinelearning','deeplearning','learnprogramming',
+        // Tech / Dev
+        'programming','webdev','compsci','technology','SoftwareEngineering',
+        // Discord / bots
         'discordapp','Discord_Bots',
     ];
 

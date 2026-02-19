@@ -112,10 +112,12 @@ async function fetchHackerNews() {
     ];
     const results = [];
     const seen = new Set();
+    // Only fetch stories from last 30 days using search_by_date endpoint
+    const thirtyDaysAgoSec = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000);
     for (const q of queries) {
         try {
             const resp = await axios.get(
-                `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(q)}&tags=story&hitsPerPage=20&numericFilters=points>1`,
+                `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(q)}&tags=story&hitsPerPage=15&numericFilters=created_at_i>${thirtyDaysAgoSec}`,
                 { timeout: 10000 }
             );
             for (const hit of (resp.data.hits || [])) {
@@ -237,45 +239,66 @@ async function fetchAnthropicBlog() {
         const resp = await axios.get('https://www.anthropic.com/news', {
             timeout: 12000,
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             },
         });
         const html = resp.data;
 
-        // Extract article slugs from /news/slug links
+        // Extract article slugs (unique, skip bare /news)
         const slugMatches = [...new Set(
             [...html.matchAll(/href="(\/news\/[^"#?]+)"/g)].map(m => m[1])
-        )].filter(s => s.length > 8).slice(0, 20);
+        )].filter(s => s.length > 8 && s !== '/news').slice(0, 25);
 
         if (slugMatches.length === 0) {
             log('warn', 'Anthropic scraper: no slugs found');
             return [];
         }
 
-        // For each slug, try to get title from the page or infer from slug
-        const posts = slugMatches.map((slug, idx) => {
-            // Convert slug to readable title: /news/claude-sonnet-4-5 -> Claude Sonnet 4.5
-            const title = slug.replace('/news/', '')
-                .replace(/-/g, ' ')
-                .replace(/\b\w/g, c => c.toUpperCase())
-                .replace(/(\d+)\.(\d+)/, '$1.$2');
+        // Fetch top 8 article pages in parallel to get real human dates ("Feb 17, 2026")
+        const MONTHS = { Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 };
+        const fetchedDates = {};
+        await Promise.all(
+            slugMatches.slice(0, 8).map(async (slug) => {
+                try {
+                    const ar = await axios.get('https://www.anthropic.com' + slug, {
+                        timeout: 8000,
+                        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+                    });
+                    // Pattern: "Feb 17, 2026" or "February 17, 2026"
+                    const m = ar.data.match(/([A-Z][a-z]{2,8})\.?\s+(\d{1,2}),\s+(\d{4})/);
+                    if (m) {
+                        const monthNum = MONTHS[m[1].substring(0, 3)];
+                        if (monthNum !== undefined) {
+                            const d = new Date(parseInt(m[3]), monthNum, parseInt(m[2]));
+                            fetchedDates[slug] = d.toISOString();
+                        }
+                    }
+                } catch (_) {}
+            })
+        );
 
+        const posts = slugMatches.map((slug, idx) => {
+            const title = slug.replace('/news/', '').replace(/-/g, ' ')
+                .replace(/\b\w/g, c => c.toUpperCase());
+            // Use real fetched date, or stagger backwards by ~5 days per position (approx)
+            const created_at = fetchedDates[slug] ||
+                new Date(Date.now() - idx * 5 * 24 * 60 * 60 * 1000).toISOString();
             return {
-                reddit_id: `anthropic_${slug.replace('/news/', '').replace(/[^a-z0-9]/gi, '_')}`,
-                title: `[Anthropic] ${title}`,
-                content: `Official Anthropic announcement. Read the full article at anthropic.com`,
+                reddit_id: 'anthropic_' + slug.replace('/news/', '').replace(/[^a-z0-9]/gi, '_'),
+                title,
+                content: 'Official Anthropic announcement. Visit anthropic.com/news for full details.',
                 author: 'Anthropic',
                 subreddit: 'AnthropicBlog',
                 upvotes: 9999 - idx,
                 num_comments: 0,
-                created_at: new Date().toISOString(),
-                url: `https://www.anthropic.com${slug}`,
+                created_at,
+                url: 'https://www.anthropic.com' + slug,
                 source: 'anthropic',
             };
         });
 
-        log('info', `Anthropic blog: scraped ${posts.length} articles`);
+        log('info', 'Anthropic blog: scraped ' + posts.length + ' articles (' + Object.keys(fetchedDates).length + ' with real dates)');
         return posts;
     } catch (e) {
         log('warn', 'Anthropic blog scrape failed', { error: e.message });
@@ -319,13 +342,13 @@ async function fetchSubredditPosts(subreddit, token, retries = 3) {
                 headers['Authorization'] = `Bearer ${token}`;
                 url = `https://oauth.reddit.com/r/${subreddit}/new?limit=100`;
             } else {
-                // Use public API if no token
-                url = `https://www.reddit.com/r/${subreddit}/new.json?limit=100`;
+                // Public API — reddit.com (no www prefix to avoid DNS issues on some hosts)
+                url = `https://reddit.com/r/${subreddit}/new.json?limit=100`;
             }
 
             const response = await axios.get(url, {
                 headers,
-                timeout: 10000
+                timeout: 15000
             });
 
             const data = token ? response.data : response.data;

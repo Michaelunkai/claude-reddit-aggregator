@@ -600,6 +600,7 @@ app.get('/api/posts', async (req, res) => {
         const {
             search = '',
             subreddit = '',
+            source = '',  // NEW: filter by source (reddit, github, hackernews, etc.)
             sortBy = 'created_at',
             sortOrder = 'desc',
             page = 1,
@@ -610,6 +611,7 @@ app.get('/api/posts', async (req, res) => {
         const result = db.getPosts({
             search,
             subreddit,
+            source,  // NEW: pass source filter to db
             sortBy,
             sortOrder: sortOrder.toLowerCase(),
             page: parseInt(page),

@@ -654,6 +654,61 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+// Debug endpoint to test Reddit strategies live
+app.get('/api/debug/reddit', async (req, res) => {
+    try {
+        log('info', 'Debug: Testing Reddit strategies');
+        const results = {
+            multireddit: 0,
+            search: 0,
+            pullpush: 0,
+            errors: [],
+        };
+
+        // Test A: Multireddit
+        try {
+            const posts = await fetchMultiSub(['ClaudeAI', 'claude', 'claudedev']);
+            results.multireddit = posts.length;
+            log('info', `Debug multireddit: ${posts.length} posts`);
+        } catch (e) {
+            results.errors.push(`Multireddit: ${e.message}`);
+            log('error', 'Debug multireddit failed', { error: e.message });
+        }
+
+        // Test B: Search
+        try {
+            const posts = await fetchRedditSearch('claude anthropic', 'week');
+            results.search = posts.length;
+            log('info', `Debug search: ${posts.length} posts`);
+        } catch (e) {
+            results.errors.push(`Search: ${e.message}`);
+            log('error', 'Debug search failed', { error: e.message });
+        }
+
+        // Test C: PullPush
+        try {
+            const posts = await fetchPullPush('claude anthropic');
+            results.pullpush = posts.length;
+            log('info', `Debug pullpush: ${posts.length} posts`);
+        } catch (e) {
+            results.errors.push(`PullPush: ${e.message}`);
+            log('error', 'Debug pullpush failed', { error: e.message });
+        }
+
+        res.json({
+            success: true,
+            results,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        log('error', 'Debug endpoint error', { error: error.message });
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 // Serve React app for all other routes (Express v5 syntax)
 app.get('/{*path}', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));

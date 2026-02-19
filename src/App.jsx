@@ -617,9 +617,14 @@ export default function App() {
 
     // Subreddit stats
     const subredditStats = useMemo(() => {
+        const NON_REDDIT = new Set(['HackerNews','GitHub','DevTo','AnthropicBlog','OpenClaw','ClawHub','MoltBot','ClawdBot','ClaudeCode']);
         const counts = {};
         posts.forEach(post => {
-            counts[post.subreddit] = (counts[post.subreddit] || 0) + 1;
+            if (!post.source || post.source === 'reddit') {
+                if (!NON_REDDIT.has(post.subreddit)) {
+                    counts[post.subreddit] = (counts[post.subreddit] || 0) + 1;
+                }
+            }
         });
         return Object.entries(counts)
             .map(([name, count]) => ({ name, count }))

@@ -596,6 +596,7 @@ export default function App() {
             const params = new URLSearchParams({
                 search: debouncedSearch,
                 subreddit: selectedSubreddit,
+                source: activeSource !== 'all' ? activeSource : '',  // Pass source filter to API
                 sortBy,
                 sortOrder,
                 page: page.toString(),
@@ -618,7 +619,7 @@ export default function App() {
         } finally {
             setLoading(false);
         }
-    }, [debouncedSearch, selectedSubreddit, sortBy, sortOrder, page, API_URL]);
+    }, [debouncedSearch, selectedSubreddit, activeSource, sortBy, sortOrder, page, API_URL]);
 
     useEffect(() => {
         fetchPosts();

@@ -89,6 +89,7 @@ class PostsDatabase {
         const {
             search = '',
             subreddit = '',
+            source = '',  // NEW: filter by source (reddit, github, hackernews, devto, anthropic)
             sortBy = 'created_at',
             sortOrder = 'desc',
             page = 1,
@@ -103,6 +104,13 @@ class PostsDatabase {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - daysBack);
         filtered = filtered.filter(p => new Date(p.created_at) >= cutoffDate);
+
+        // Filter by source (reddit, github, hackernews, devto, anthropic, etc.)
+        if (source) {
+            filtered = filtered.filter(p => 
+                (p.source || 'reddit').toLowerCase() === source.toLowerCase()
+            );
+        }
 
         // Filter by minimum upvotes
         if (minUpvotes > 0) {

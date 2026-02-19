@@ -84,37 +84,46 @@ async function redditGet(url, retries = 2) {
     throw new Error(`All Reddit hosts failed for: ${url.substring(0, 80)}`);
 }
 
-// All topic keywords for filtering generic subreddits
+// STRICT 7-day window for all sources
+const DAYS_WINDOW = 7;
+const MS_WINDOW = DAYS_WINDOW * 24 * 60 * 60 * 1000;
+
+// STRICT topic keywords — must match at least one to be included
+// These are specific enough that a match = relevance
 const TOPIC_KEYWORDS = [
-    'claude', 'claude code', 'anthropic', 'ai coding', 'ai assistant',
-    'openclaw', 'openclaw.ai', 'clawhub',
-    'moltbot', 'moltbook',
-    'clawdbot', 'clawd bot', 'clawd',
-    'ai agent', 'mcp server', 'mcp protocol',
+    // Claude / Anthropic (primary targets)
+    'claude', 'anthropic', 'claude code', 'claude-code', 'claudeai',
+    'sonnet 3.5', 'sonnet 4', 'opus 4', 'haiku 3', 'claude 3', 'claude 4',
+    // OpenClaw ecosystem
+    'openclaw', 'clawhub', 'moltbot', 'moltbook', 'clawdbot',
+    // AI coding tools (specific names only)
+    'cursor ai', 'windsurf ai', 'codeium', 'github copilot',
+    'aider', 'continue.dev', 'cody ai',
+    // MCP specifically
+    'mcp server', 'model context protocol', 'mcp protocol',
 ];
 
-// Subreddits where ALL posts are included (no keyword filter)
+// Subreddits dedicated to Claude/Anthropic — still filter by recency but include all relevant posts
 const DEDICATED_SUBS = new Set([
-    'claude', 'claudeai', 'claudedev', 'anthropicai', 'claudecode',
-    'aicoding', 'aiagents',
+    'claudeai', 'claude', 'claudedev', 'anthropicai', 'claudecode',
 ]);
 
 // ── Hacker News ─────────────────────────────────────────────────────────────
 async function fetchHackerNews() {
     const queries = [
-        'claude anthropic', 'claude code', 'anthropic model', 'claude AI',
+        'claude anthropic', 'claude code', 'anthropic',
         'openclaw', 'moltbot', 'clawdbot', 'clawhub',
-        'anthropic sonnet', 'anthropic opus', 'anthropic haiku',
-        'claude 3', 'claude 4', 'MCP model context protocol',
+        'anthropic sonnet', 'anthropic opus',
+        'MCP model context protocol', 'ai coding assistant',
     ];
     const results = [];
     const seen = new Set();
-    // Only fetch stories from last 30 days using search_by_date endpoint
-    const thirtyDaysAgoSec = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000);
+    // STRICT 7-day window
+    const cutoffSec = Math.floor((Date.now() - MS_WINDOW) / 1000);
     for (const q of queries) {
         try {
             const resp = await axios.get(
-                `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(q)}&tags=story&hitsPerPage=15&numericFilters=created_at_i>${thirtyDaysAgoSec}`,
+                `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(q)}&tags=story&hitsPerPage=20&numericFilters=created_at_i>${cutoffSec}`,
                 { timeout: 10000 }
             );
             for (const hit of (resp.data.hits || [])) {
@@ -142,8 +151,15 @@ async function fetchHackerNews() {
 
 // ── GitHub ───────────────────────────────────────────────────────────────────
 async function fetchGitHub() {
-    // Search both repos AND issues/discussions for more coverage
-    const repoQueries = ['openclaw', 'clawdbot', 'moltbot', 'claude-code anthropic', 'clawhub skills', 'anthropic claude sdk'];
+    // Focus on repos updated in last 7 days with relevant topics
+    const cutoffDate = new Date(Date.now() - MS_WINDOW).toISOString().split('T')[0];
+    const repoQueries = [
+        `openclaw pushed:>${cutoffDate}`,
+        `claude-code pushed:>${cutoffDate}`,
+        `mcp-server pushed:>${cutoffDate}`,
+        `anthropic pushed:>${cutoffDate}`,
+        `ai-coding-assistant pushed:>${cutoffDate}`,
+    ];
     const results = [];
     const seen = new Set();
     const headers = {
@@ -155,11 +171,15 @@ async function fetchGitHub() {
     for (const q of repoQueries) {
         try {
             const resp = await axios.get(
-                `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc&per_page=10`,
+                `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=updated&order=desc&per_page=15`,
                 { headers, timeout: 10000 }
             );
             for (const repo of (resp.data.items || [])) {
                 if (seen.has(`repo_${repo.id}`)) continue;
+                // Skip if not updated within window
+                const updatedAt = new Date(repo.pushed_at || repo.updated_at);
+                if (updatedAt < new Date(Date.now() - MS_WINDOW)) continue;
+                
                 seen.add(`repo_${repo.id}`);
                 results.push({
                     reddit_id: `gh_${repo.id}`,
@@ -169,46 +189,44 @@ async function fetchGitHub() {
                     subreddit: 'GitHub',
                     upvotes: repo.stargazers_count,
                     num_comments: repo.open_issues_count,
-                    created_at: repo.updated_at,
+                    created_at: repo.pushed_at || repo.updated_at, // Use actual push date
                     url: repo.html_url,
                     source: 'github',
                 });
             }
-            await new Promise(r => setTimeout(r, 400));
+            await new Promise(r => setTimeout(r, 500));
         } catch (e) { log('warn', `GitHub repos failed: ${q}`, { error: e.message }); }
     }
-    log('info', `GitHub: fetched ${results.length} repos`);
+    log('info', `GitHub: fetched ${results.length} repos (7-day window)`);
     return results;
 }
 
 // ── Dev.to ───────────────────────────────────────────────────────────────────
 async function fetchDevTo() {
-    const tagFetches = [
-        { tag: 'claude',       relevant: true },
-        { tag: 'anthropic',    relevant: true },
-        { tag: 'claudeai',     relevant: true },
-        { tag: 'claudecode',   relevant: true },
-        { tag: 'aitools',      relevant: false },
-        { tag: 'llm',          relevant: false },
-        { tag: 'aiagents',     relevant: false },
-        { tag: 'mcp',          relevant: false },
-        { tag: 'artificialintelligence', relevant: false },
-        { tag: 'machinelearning', relevant: false },
-    ];
+    // Only relevant tags, filter by 7-day window
+    const tags = ['claude', 'anthropic', 'claudeai', 'claudecode', 'mcp', 'aiagents', 'aicoding'];
     const results = [];
     const seen = new Set();
-    for (const { tag, relevant } of tagFetches) {
+    const cutoff = Date.now() - MS_WINDOW;
+    
+    for (const tag of tags) {
         try {
+            // Use top=7 for last 7 days
             const resp = await axios.get(
-                `https://dev.to/api/articles?tag=${tag}&per_page=20&top=30`,
-                { timeout: 10000, headers: { 'User-Agent': 'ClaudeAggregator/2.0', 'api-key': process.env.DEVTO_API_KEY || '' } }
+                `https://dev.to/api/articles?tag=${tag}&per_page=25&top=7`,
+                { timeout: 10000, headers: { 'User-Agent': 'ClaudeAggregator/2.0' } }
             );
             for (const art of (resp.data || [])) {
                 if (seen.has(art.id)) continue;
-                if (!relevant) {
-                    const text = ((art.title || '') + ' ' + (art.description || '')).toLowerCase();
-                    if (!TOPIC_KEYWORDS.some(kw => text.includes(kw.toLowerCase()))) continue;
-                }
+                
+                // Check date
+                const pubDate = new Date(art.published_at || 0);
+                if (pubDate.getTime() < cutoff) continue;
+                
+                // Must match keywords
+                const text = ((art.title || '') + ' ' + (art.description || '')).toLowerCase();
+                if (!TOPIC_KEYWORDS.some(kw => text.includes(kw.toLowerCase()))) continue;
+                
                 seen.add(art.id);
                 results.push({
                     reddit_id: `devto_${art.id}`,
@@ -218,7 +236,7 @@ async function fetchDevTo() {
                     subreddit: 'DevTo',
                     upvotes: (art.positive_reactions_count || 0) + (art.public_reactions_count || 0),
                     num_comments: art.comments_count || 0,
-                    created_at: art.published_at || new Date().toISOString(),
+                    created_at: art.published_at,
                     url: art.url,
                     source: 'devto',
                 });
@@ -275,27 +293,35 @@ async function fetchAnthropicBlog() {
             })
         );
 
-        const posts = slugMatches.map((slug, idx) => {
+        // Only include articles with REAL dates that are within 7-day window
+        const cutoff = Date.now() - MS_WINDOW;
+        const posts = [];
+        
+        for (const slug of slugMatches) {
+            const realDate = fetchedDates[slug];
+            if (!realDate) continue; // Skip if we couldn't get real date
+            
+            const dateMs = new Date(realDate).getTime();
+            if (dateMs < cutoff) continue; // Skip if older than 7 days
+            
             const title = slug.replace('/news/', '').replace(/-/g, ' ')
                 .replace(/\b\w/g, c => c.toUpperCase());
-            // Use real fetched date, or stagger backwards by ~5 days per position (approx)
-            const created_at = fetchedDates[slug] ||
-                new Date(Date.now() - idx * 5 * 24 * 60 * 60 * 1000).toISOString();
-            return {
+            
+            posts.push({
                 reddit_id: 'anthropic_' + slug.replace('/news/', '').replace(/[^a-z0-9]/gi, '_'),
                 title,
                 content: 'Official Anthropic announcement. Visit anthropic.com/news for full details.',
                 author: 'Anthropic',
                 subreddit: 'AnthropicBlog',
-                upvotes: 9999 - idx,
+                upvotes: 1000,
                 num_comments: 0,
-                created_at,
+                created_at: realDate,
                 url: 'https://www.anthropic.com' + slug,
                 source: 'anthropic',
-            };
-        });
+            });
+        }
 
-        log('info', 'Anthropic blog: scraped ' + posts.length + ' articles (' + Object.keys(fetchedDates).length + ' with real dates)');
+        log('info', `Anthropic blog: ${posts.length} articles within 7-day window`);
         return posts;
     } catch (e) {
         log('warn', 'Anthropic blog scrape failed', { error: e.message });
@@ -303,24 +329,10 @@ async function fetchAnthropicBlog() {
     }
 }
 
-// ── Curated official resource cards ─────────────────────────────────────────
+// ── Curated resources removed — only real-time posts from actual sources ──
 function getCuratedResources() {
-    // Real stable dates for official resources (not new Date() which causes fake "just now")
-    const OPENCLAW_BORN    = '2024-06-01T00:00:00.000Z';
-    const CLAWHUB_BORN     = '2024-07-01T00:00:00.000Z';
-    const MOLTBOT_BORN     = '2024-08-01T00:00:00.000Z';
-    const CLAUDE_CODE_BORN = '2024-10-01T00:00:00.000Z';
-    const ANTHROPIC_BORN   = '2023-03-01T00:00:00.000Z';
-    return [
-        { reddit_id: 'oc_site',      title: 'OpenClaw Official Website',                    content: 'OpenClaw: personal AI assistant running Claude at home. Telegram, WhatsApp, Discord, skill system, marathon mode.',                      author: 'openclaw',  subreddit: 'OpenClaw',    upvotes: 9999, num_comments: 0, created_at: OPENCLAW_BORN,     url: 'https://openclaw.ai',                                    source: 'openclaw'  },
-        { reddit_id: 'oc_docs',      title: 'OpenClaw Documentation & Guides',               content: 'Complete OpenClaw docs: setup, skills, config, marathon mode, Android control, Telegram/WhatsApp integration.',                         author: 'openclaw',  subreddit: 'OpenClaw',    upvotes: 9998, num_comments: 0, created_at: OPENCLAW_BORN,     url: 'https://docs.openclaw.ai',                               source: 'openclaw'  },
-        { reddit_id: 'oc_clawhub',   title: 'ClawHub: OpenClaw Skills Marketplace',          content: 'Browse hundreds of OpenClaw skills: research, debugging, stock prices, news, and more. clawhub.ai',                                    author: 'openclaw',  subreddit: 'ClawHub',     upvotes: 9997, num_comments: 0, created_at: CLAWHUB_BORN,     url: 'https://clawhub.ai',                                     source: 'openclaw'  },
-        { reddit_id: 'oc_discord',   title: 'OpenClaw Community Discord Server',             content: 'Join the OpenClaw Discord: get help, share skills, discuss features, connect with users.',                                             author: 'openclaw',  subreddit: 'OpenClaw',    upvotes: 9996, num_comments: 0, created_at: OPENCLAW_BORN,     url: 'https://discord.com/invite/clawd',                       source: 'openclaw'  },
-        { reddit_id: 'moltbot_site', title: 'MoltBot: AI-powered Discord Bot via Moltbook',  content: 'MoltBot is a Claude-powered Discord bot. Create and deploy custom AI bots in your server via moltbook.com.',                           author: 'moltbot',   subreddit: 'MoltBot',     upvotes: 9995, num_comments: 0, created_at: MOLTBOT_BORN,     url: 'https://moltbook.com',                                   source: 'moltbot'   },
-        { reddit_id: 'clawd_site',   title: 'ClawdBot: Claude AI in Telegram & WhatsApp',    content: 'ClawdBot delivers Claude AI in Telegram and WhatsApp with full skill support and real-time notifications.',                            author: 'openclaw',  subreddit: 'ClawdBot',    upvotes: 9994, num_comments: 0, created_at: OPENCLAW_BORN,     url: 'https://openclaw.ai',                                    source: 'clawdbot'  },
-        { reddit_id: 'cc_docs',      title: 'Claude Code: Official CLI Documentation',       content: "Anthropic's official CLI for Claude. Install, CLAUDE.md optimisation, tool use, memory management, best practices.",                   author: 'anthropic', subreddit: 'ClaudeCode',  upvotes: 9993, num_comments: 0, created_at: CLAUDE_CODE_BORN,  url: 'https://docs.anthropic.com/en/docs/claude-code',         source: 'anthropic' },
-        { reddit_id: 'api_docs',     title: 'Anthropic Claude API Documentation',            content: 'All Claude models, messages API, tool use, vision, streaming, system prompts, rate limits, Python/TypeScript SDKs.',                   author: 'anthropic', subreddit: 'AnthropicBlog', upvotes: 9992, num_comments: 0, created_at: ANTHROPIC_BORN,    url: 'https://docs.anthropic.com',                             source: 'anthropic' },
-    ];
+    // No static curated content — everything must be recent and real
+    return [];
 }
 
 // Convert a Reddit post object to our standard format
@@ -395,11 +407,11 @@ async function fetchPullPush(query) {
 }
 
 // Main Reddit fetch — no credentials needed, uses multiple strategies
-// Every strategy is wrapped in try/catch so one failure never kills the others
+// STRICT 7-day window, keyword filtering on everything
 async function fetchAllRedditPosts() {
     const results = [];
     const seen = new Set();
-    const cutoff14d = Date.now() - 14 * 24 * 60 * 60 * 1000;
+    const cutoff7d = Date.now() - MS_WINDOW;
 
     function addPosts(rawPosts, isDedicated = false) {
         if (!Array.isArray(rawPosts)) return;
@@ -409,13 +421,13 @@ async function fetchAllRedditPosts() {
                 const id = post.id || post.name;
                 if (seen.has(id)) continue;
 
+                // STRICT 7-day check for ALL posts
                 const postTime = (post.created_utc || post.created || 0) * 1000;
-                if (postTime < cutoff14d && !isDedicated) continue;
+                if (postTime < cutoff7d) continue;
 
-                if (!isDedicated) {
-                    const text = ((post.title || '') + ' ' + (post.selftext || '')).toLowerCase();
-                    if (!TOPIC_KEYWORDS.some(kw => text.includes(kw.toLowerCase()))) continue;
-                }
+                // Keyword filter — even dedicated subs get filtered (just less strict)
+                const text = ((post.title || '') + ' ' + (post.selftext || '')).toLowerCase();
+                if (!isDedicated && !TOPIC_KEYWORDS.some(kw => text.includes(kw.toLowerCase()))) continue;
 
                 seen.add(id);
                 results.push(normalizeRedditPost(post));
@@ -423,49 +435,38 @@ async function fetchAllRedditPosts() {
         }
     }
 
-    // ── Strategy A: Dedicated subs via multireddit batches ──
+    // ── Strategy A: Claude/Anthropic dedicated subs ──
     try {
-        const dedicatedSubs = ['ClaudeAI', 'claude', 'claudedev', 'AnthropicAI', 'ClaudeCode', 'aicoding', 'AIAgents'];
-        const dedBatches = [];
-        for (let i = 0; i < dedicatedSubs.length; i += 5) dedBatches.push(dedicatedSubs.slice(i, i + 5));
-
-        for (const batch of dedBatches) {
+        const dedicatedSubs = ['ClaudeAI', 'claude', 'claudedev', 'AnthropicAI', 'ClaudeCode'];
+        for (const sub of dedicatedSubs) {
             try {
-                const posts = await fetchMultiSub(batch);
-                addPosts(posts, true);
-            } catch (e) { log('warn', `Strategy A batch failed: ${batch.join(',')}`, { error: e.message }); }
-            await new Promise(r => setTimeout(r, 1200));
+                const posts = await fetchMultiSub([sub]);
+                addPosts(posts, true); // dedicated = less strict keyword filter
+            } catch (e) { log('warn', `Strategy A failed: r/${sub}`, { error: e.message }); }
+            await new Promise(r => setTimeout(r, 1000));
         }
     } catch (e) { log('warn', 'Strategy A failed entirely', { error: e.message }); }
 
-    // ── Strategy B: Broad topic subs via multireddit batches ──
+    // ── Strategy B: AI coding/tools subs with strict keyword filter ──
     try {
-        const topicSubs = [
-            'vibecoding', 'cursor_ai', 'AIdev', 'GithubCopilot', 'ChatGPTCoding',
-            'PromptEngineering', 'LangChain', 'AutoGPT', 'n8n',
-            'OpenAI', 'MachineLearning', 'LocalLLaMA', 'ChatGPT', 'GPT4',
-            'ArtificialIntelligence', 'programming', 'SoftwareEngineering', 'webdev', 'technology',
-        ];
-        const topicBatches = [];
-        for (let i = 0; i < topicSubs.length; i += 10) topicBatches.push(topicSubs.slice(i, i + 10));
-
-        for (const batch of topicBatches) {
+        const topicSubs = ['vibecoding', 'cursor', 'mcp'];
+        for (const sub of topicSubs) {
             try {
-                const posts = await fetchMultiSub(batch);
-                addPosts(posts, false);
-            } catch (e) { log('warn', `Strategy B batch failed`, { error: e.message }); }
-            await new Promise(r => setTimeout(r, 1500));
+                const posts = await fetchMultiSub([sub]);
+                addPosts(posts, false); // strict keyword filter
+            } catch (e) { log('warn', `Strategy B failed: r/${sub}`, { error: e.message }); }
+            await new Promise(r => setTimeout(r, 1000));
         }
     } catch (e) { log('warn', 'Strategy B failed entirely', { error: e.message }); }
 
-    // ── Strategy C: Reddit global keyword search ──
+    // ── Strategy C: Reddit global keyword search (last 7 days) ──
     try {
         const searchQueries = [
-            'claude anthropic',
-            'claude code anthropic',
-            'openclaw ai assistant',
-            'anthropic claude model',
-            'MCP model context protocol claude',
+            '"claude code"',      // exact phrase
+            '"openclaw"',
+            '"anthropic" claude',
+            '"mcp server"',
+            'claude sonnet opus',
         ];
 
         for (const q of searchQueries) {
@@ -477,14 +478,17 @@ async function fetchAllRedditPosts() {
         }
     } catch (e) { log('warn', 'Strategy C failed entirely', { error: e.message }); }
 
-    // ── Strategy D: PullPush.io for additional historical coverage ──
+    // ── Strategy D: PullPush.io (7-day cutoff applied in addPosts) ──
     try {
-        const pullpushQueries = ['claude anthropic', 'openclaw', 'claude code', 'anthropic AI'];
+        const pullpushQueries = ['claude anthropic', 'openclaw', 'claude code'];
         for (const q of pullpushQueries) {
             try {
                 const posts = await fetchPullPush(q);
+                // PullPush returns normalized posts, need to filter by date
                 for (const p of posts) {
                     if (!p || seen.has(p.reddit_id)) continue;
+                    const postTime = new Date(p.created_at).getTime();
+                    if (postTime < cutoff7d) continue;
                     seen.add(p.reddit_id);
                     results.push(p);
                 }
@@ -603,7 +607,7 @@ app.get('/api/posts', async (req, res) => {
             page: parseInt(page),
             limit: Math.min(parseInt(limit), 100),
             minUpvotes: parseInt(minUpvotes),
-            daysBack: 90  // 90 days window; pinned sources (openclaw/github/etc) exempt in db.js
+            daysBack: 7  // STRICT 7-day window
         });
 
         res.json({

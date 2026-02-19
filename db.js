@@ -94,18 +94,15 @@ class PostsDatabase {
             page = 1,
             limit = 20,
             minUpvotes = 0,
-            daysBack = 30
+            daysBack = 7  // STRICT 7-day default
         } = options;
 
         let filtered = [...this.posts];
 
-        // Filter by date — pinned sources (curated/official) are never date-filtered
-        const PINNED_SOURCES = new Set(['openclaw','moltbot','clawdbot','anthropic','github','devto','hackernews']);
+        // STRICT date filter — ALL posts must be within window, no exceptions
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - daysBack);
-        filtered = filtered.filter(p =>
-            PINNED_SOURCES.has(p.source || '') || new Date(p.created_at) >= cutoffDate
-        );
+        filtered = filtered.filter(p => new Date(p.created_at) >= cutoffDate);
 
         // Filter by minimum upvotes
         if (minUpvotes > 0) {

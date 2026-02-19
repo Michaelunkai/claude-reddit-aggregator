@@ -709,8 +709,8 @@ app.get('/api/debug/reddit', async (req, res) => {
     }
 });
 
-// Serve React app for all other routes (Express v5 syntax)
-app.get('/{*path}', (req, res) => {
+// Serve React app for all other routes (catch-all for SPA)
+app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 

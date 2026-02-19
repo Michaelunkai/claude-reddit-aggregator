@@ -380,11 +380,17 @@ function SubredditChips({ subreddits, selected, onSelect }) {
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center space-x-1.5 ${
                         selected === sub.name
                             ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30'
-                            : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                            : sub.count > 0
+                                ? 'bg-white/10 text-gray-300 hover:bg-white/20'
+                                : 'bg-white/5 text-gray-600 hover:bg-white/10 hover:text-gray-400'
                     }`}
                 >
                     <span>r/{sub.name}</span>
-                    <span className="text-xs opacity-75">({sub.count})</span>
+                    {sub.count > 0 && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
+                            selected === sub.name ? 'bg-white/20 text-white' : 'bg-purple-500/30 text-purple-300'
+                        }`}>{sub.count}</span>
+                    )}
                 </button>
             ))}
         </div>

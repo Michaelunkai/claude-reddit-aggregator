@@ -395,83 +395,103 @@ async function fetchPullPush(query) {
 }
 
 // Main Reddit fetch — no credentials needed, uses multiple strategies
+// Every strategy is wrapped in try/catch so one failure never kills the others
 async function fetchAllRedditPosts() {
     const results = [];
     const seen = new Set();
     const cutoff14d = Date.now() - 14 * 24 * 60 * 60 * 1000;
 
     function addPosts(rawPosts, isDedicated = false) {
+        if (!Array.isArray(rawPosts)) return;
         for (const post of rawPosts) {
-            if (!post.id && !post.name) continue;
-            const id = post.id || post.name;
-            if (seen.has(id)) continue;
+            try {
+                if (!post || (!post.id && !post.name)) continue;
+                const id = post.id || post.name;
+                if (seen.has(id)) continue;
 
-            const postTime = (post.created_utc || post.created || 0) * 1000;
-            if (postTime < cutoff14d && !isDedicated) continue;
+                const postTime = (post.created_utc || post.created || 0) * 1000;
+                if (postTime < cutoff14d && !isDedicated) continue;
 
-            if (!isDedicated) {
-                const text = ((post.title || '') + ' ' + (post.selftext || '')).toLowerCase();
-                if (!TOPIC_KEYWORDS.some(kw => text.includes(kw.toLowerCase()))) continue;
-            }
+                if (!isDedicated) {
+                    const text = ((post.title || '') + ' ' + (post.selftext || '')).toLowerCase();
+                    if (!TOPIC_KEYWORDS.some(kw => text.includes(kw.toLowerCase()))) continue;
+                }
 
-            seen.add(id);
-            results.push(normalizeRedditPost(post));
+                seen.add(id);
+                results.push(normalizeRedditPost(post));
+            } catch (e) { /* skip bad post */ }
         }
     }
 
-    // ── Strategy A: Dedicated subs via multireddit batches (5 subs per request) ──
-    const dedicatedSubs = ['ClaudeAI', 'claude', 'claudedev', 'AnthropicAI', 'ClaudeCode', 'aicoding', 'AIAgents', 'claudeai'];
-    const dedBatches = [];
-    for (let i = 0; i < dedicatedSubs.length; i += 5) dedBatches.push(dedicatedSubs.slice(i, i + 5));
+    // ── Strategy A: Dedicated subs via multireddit batches ──
+    try {
+        const dedicatedSubs = ['ClaudeAI', 'claude', 'claudedev', 'AnthropicAI', 'ClaudeCode', 'aicoding', 'AIAgents'];
+        const dedBatches = [];
+        for (let i = 0; i < dedicatedSubs.length; i += 5) dedBatches.push(dedicatedSubs.slice(i, i + 5));
 
-    for (const batch of dedBatches) {
-        const posts = await fetchMultiSub(batch);
-        addPosts(posts, true); // dedicated = include all
-        await new Promise(r => setTimeout(r, 1200));
-    }
+        for (const batch of dedBatches) {
+            try {
+                const posts = await fetchMultiSub(batch);
+                addPosts(posts, true);
+            } catch (e) { log('warn', `Strategy A batch failed: ${batch.join(',')}`, { error: e.message }); }
+            await new Promise(r => setTimeout(r, 1200));
+        }
+    } catch (e) { log('warn', 'Strategy A failed entirely', { error: e.message }); }
 
-    // ── Strategy B: Broad topic subs via multireddit batches (10 subs per request) ──
-    const topicSubs = [
-        'vibecoding', 'cursor_ai', 'AIdev', 'GithubCopilot', 'ChatGPTCoding',
-        'PromptEngineering', 'LangChain', 'AutoGPT', 'AIAgents', 'n8n',
-        'OpenAI', 'MachineLearning', 'LocalLLaMA', 'ChatGPT', 'GPT4',
-        'ArtificialIntelligence', 'programming', 'SoftwareEngineering', 'webdev', 'technology',
-    ];
-    const topicBatches = [];
-    for (let i = 0; i < topicSubs.length; i += 10) topicBatches.push(topicSubs.slice(i, i + 10));
+    // ── Strategy B: Broad topic subs via multireddit batches ──
+    try {
+        const topicSubs = [
+            'vibecoding', 'cursor_ai', 'AIdev', 'GithubCopilot', 'ChatGPTCoding',
+            'PromptEngineering', 'LangChain', 'AutoGPT', 'n8n',
+            'OpenAI', 'MachineLearning', 'LocalLLaMA', 'ChatGPT', 'GPT4',
+            'ArtificialIntelligence', 'programming', 'SoftwareEngineering', 'webdev', 'technology',
+        ];
+        const topicBatches = [];
+        for (let i = 0; i < topicSubs.length; i += 10) topicBatches.push(topicSubs.slice(i, i + 10));
 
-    for (const batch of topicBatches) {
-        const posts = await fetchMultiSub(batch);
-        addPosts(posts, false); // filter by keywords
-        await new Promise(r => setTimeout(r, 1500));
-    }
+        for (const batch of topicBatches) {
+            try {
+                const posts = await fetchMultiSub(batch);
+                addPosts(posts, false);
+            } catch (e) { log('warn', `Strategy B batch failed`, { error: e.message }); }
+            await new Promise(r => setTimeout(r, 1500));
+        }
+    } catch (e) { log('warn', 'Strategy B failed entirely', { error: e.message }); }
 
-    // ── Strategy C: Reddit global keyword search (crosses all subreddits) ──
-    const searchQueries = [
-        'claude anthropic site:reddit.com',
-        'claude code anthropic',
-        'openclaw ai assistant',
-        'anthropic claude model',
-        'MCP model context protocol claude',
-    ];
+    // ── Strategy C: Reddit global keyword search ──
+    try {
+        const searchQueries = [
+            'claude anthropic',
+            'claude code anthropic',
+            'openclaw ai assistant',
+            'anthropic claude model',
+            'MCP model context protocol claude',
+        ];
 
-    for (const q of searchQueries) {
-        const posts = await fetchRedditSearch(q, 'week');
-        addPosts(posts, false);
-        await new Promise(r => setTimeout(r, 1000));
-    }
+        for (const q of searchQueries) {
+            try {
+                const posts = await fetchRedditSearch(q, 'week');
+                addPosts(posts, false);
+            } catch (e) { log('warn', `Strategy C search failed: "${q}"`, { error: e.message }); }
+            await new Promise(r => setTimeout(r, 1000));
+        }
+    } catch (e) { log('warn', 'Strategy C failed entirely', { error: e.message }); }
 
     // ── Strategy D: PullPush.io for additional historical coverage ──
-    const pullpushQueries = ['claude anthropic', 'openclaw', 'claude code', 'anthropic AI'];
-    for (const q of pullpushQueries) {
-        const posts = await fetchPullPush(q);
-        for (const p of posts) {
-            if (seen.has(p.reddit_id)) continue;
-            seen.add(p.reddit_id);
-            results.push(p);
+    try {
+        const pullpushQueries = ['claude anthropic', 'openclaw', 'claude code', 'anthropic AI'];
+        for (const q of pullpushQueries) {
+            try {
+                const posts = await fetchPullPush(q);
+                for (const p of posts) {
+                    if (!p || seen.has(p.reddit_id)) continue;
+                    seen.add(p.reddit_id);
+                    results.push(p);
+                }
+            } catch (e) { log('warn', `Strategy D PullPush failed: "${q}"`, { error: e.message }); }
+            await new Promise(r => setTimeout(r, 800));
         }
-        await new Promise(r => setTimeout(r, 800));
-    }
+    } catch (e) { log('warn', 'Strategy D failed entirely', { error: e.message }); }
 
     log('info', `Reddit total: ${results.length} unique posts from all strategies`);
     return results;
@@ -491,14 +511,14 @@ async function fetchAllPosts() {
 
     log('info', 'Starting multi-source fetch (no-auth Reddit strategies)');
 
-    // Run non-Reddit sources in parallel while Reddit fetches sequentially (rate limit friendly)
+    // Run all sources in parallel — each wrapped so one failure doesn't kill others
     const [hn, gh, devto, blog, curated, reddit] = await Promise.all([
-        fetchHackerNews(),
-        fetchGitHub(),
-        fetchDevTo(),
-        fetchAnthropicBlog(),
+        fetchHackerNews().catch(e => { log('error', 'HN fetch failed', { error: e.message }); return []; }),
+        fetchGitHub().catch(e => { log('error', 'GitHub fetch failed', { error: e.message }); return []; }),
+        fetchDevTo().catch(e => { log('error', 'DevTo fetch failed', { error: e.message }); return []; }),
+        fetchAnthropicBlog().catch(e => { log('error', 'Anthropic fetch failed', { error: e.message }); return []; }),
         Promise.resolve(getCuratedResources()),
-        fetchAllRedditPosts(),
+        fetchAllRedditPosts().catch(e => { log('error', 'Reddit fetch failed', { error: e.message }); return []; }),
     ]);
 
     const allPosts = [...curated, ...blog, ...hn, ...gh, ...devto, ...reddit];

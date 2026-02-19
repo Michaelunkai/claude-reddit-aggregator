@@ -33,6 +33,28 @@ function useCountdown(targetTime, onComplete) {
     return { minutes, seconds, timeLeft };
 }
 
+// Source metadata
+const SOURCE_META = {
+    reddit:     { icon: '🔴', name: 'Reddit',         color: 'from-orange-500 to-red-500' },
+    hackernews: { icon: '🟠', name: 'Hacker News',    color: 'from-amber-500 to-orange-600' },
+    github:     { icon: '⚫', name: 'GitHub',         color: 'from-gray-500 to-slate-700' },
+    devto:      { icon: '🟣', name: 'Dev.to',         color: 'from-purple-500 to-violet-700' },
+    anthropic:  { icon: '🔵', name: 'Anthropic',      color: 'from-blue-500 to-cyan-600' },
+    openclaw:   { icon: '🦅', name: 'OpenClaw',       color: 'from-emerald-500 to-teal-600' },
+    moltbot:    { icon: '🤖', name: 'MoltBot',        color: 'from-fuchsia-500 to-pink-600' },
+    clawdbot:   { icon: '📱', name: 'ClawdBot',       color: 'from-sky-500 to-indigo-600' },
+};
+function getSourceMeta(post) { return SOURCE_META[post.source] || SOURCE_META.reddit; }
+
+function SourceBadge({ post }) {
+    const m = getSourceMeta(post);
+    return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-black/20 text-white/80 border border-white/10">
+            {m.icon} {m.name}
+        </span>
+    );
+}
+
 // Loading skeleton component
 function PostSkeleton() {
     return (
@@ -65,6 +87,9 @@ function TrendingBadge({ rank }) {
 
 // Post card component
 function PostCard({ post, isFavorite, onToggleFavorite, isSelected, onSelect, showTrending, rank }) {
+    const isNew = (Date.now() - new Date(post.created_at).getTime()) < 2 * 60 * 60 * 1000;
+    const isReddit = !post.source || post.source === 'reddit';
+
     const formatDate = (dateString) => {
         const date = new Date(dateString);
         const now = new Date();
@@ -96,10 +121,26 @@ function PostCard({ post, isFavorite, onToggleFavorite, isSelected, onSelect, sh
         'singularity': 'from-fuchsia-500 to-pink-600',
         'Bard': 'from-yellow-500 to-orange-600',
         'bing': 'from-sky-500 to-blue-600',
-        'perplexity_ai': 'from-violet-500 to-purple-600'
+        'perplexity_ai': 'from-violet-500 to-purple-600',
+        'ClaudeCode': 'from-cyan-500 to-blue-600',
+        'AICoding': 'from-blue-400 to-indigo-600',
+        'vibecoding': 'from-violet-400 to-fuchsia-600',
+        'cursor_ai': 'from-teal-400 to-cyan-600',
+        'AIdev': 'from-sky-500 to-blue-600',
+        'AIAgents': 'from-rose-500 to-red-600',
+        'PromptEngineering': 'from-lime-500 to-green-600',
+        'HackerNews': 'from-amber-500 to-orange-600',
+        'GitHub': 'from-gray-500 to-slate-700',
+        'DevTo': 'from-purple-500 to-violet-700',
+        'AnthropicBlog': 'from-blue-500 to-cyan-600',
+        'OpenClaw': 'from-emerald-500 to-teal-600',
+        'ClawHub': 'from-teal-400 to-emerald-600',
+        'MoltBot': 'from-fuchsia-500 to-pink-600',
+        'ClawdBot': 'from-sky-500 to-indigo-600',
     };
 
     const gradientClass = subredditColors[post.subreddit] || 'from-gray-500 to-gray-600';
+    const subLabel = isReddit ? `r/${post.subreddit}` : post.subreddit;
 
     return (
         <article
@@ -115,10 +156,14 @@ function PostCard({ post, isFavorite, onToggleFavorite, isSelected, onSelect, sh
             <div className={`h-1.5 bg-gradient-to-r ${gradientClass}`}></div>
 
             <div className="p-5">
-                <div className="flex items-start justify-between mb-3">
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r ${gradientClass} text-white shadow-lg`}>
-                        r/{post.subreddit}
-                    </span>
+                <div className="flex items-start justify-between mb-3 gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r ${gradientClass} text-white shadow-lg`}>
+                            {subLabel}
+                        </span>
+                        <SourceBadge post={post} />
+                        {isNew && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-500/20 text-green-400 border border-green-500/30 animate-pulse">NEW</span>}
+                    </div>
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
@@ -162,7 +207,7 @@ function PostCard({ post, isFavorite, onToggleFavorite, isSelected, onSelect, sh
                         </span>
                     </div>
                     <div className="flex items-center space-x-2 text-gray-400">
-                        <span className="truncate max-w-[100px]">u/{post.author}</span>
+                        <span className="truncate max-w-[100px]">{isReddit ? `u/${post.author}` : post.author}</span>
                         <span className="text-gray-600">|</span>
                         <span className="text-purple-400">{formatDate(post.created_at)}</span>
                     </div>
@@ -178,6 +223,8 @@ function PostCard({ post, isFavorite, onToggleFavorite, isSelected, onSelect, sh
 // Post Modal component
 function PostModal({ post, isOpen, onClose, isFavorite, onToggleFavorite }) {
     const modalRef = useRef(null);
+    const [copied, setCopied] = useState(false);
+    const copyLink = () => { if (!post) return; navigator.clipboard.writeText(post.url).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); }).catch(() => {}); };
 
     useEffect(() => {
         if (isOpen) {
@@ -292,18 +339,20 @@ function PostModal({ post, isOpen, onClose, isFavorite, onToggleFavorite }) {
                         </div>
                     )}
 
-                    {/* View on Reddit button */}
-                    <a
-                        href={post.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center w-full py-3 px-6 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 text-white font-semibold hover:from-orange-600 hover:to-red-600 transition-all shadow-lg hover:shadow-orange-500/25"
-                    >
-                        <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5.8 11.33c.07.25.12.5.12.77 0 2.42-2.81 4.4-6.27 4.4s-6.27-1.98-6.27-4.4c0-.27.05-.52.12-.77-.67-.37-1.1-1.05-1.1-1.83 0-1.1.9-2 2-2 .55 0 1.05.22 1.42.58 1.1-.67 2.52-1.08 4.05-1.13l.85-4.02c.05-.22.27-.37.5-.32l2.87.62c.15-.35.52-.6.95-.6.55 0 1 .45 1 1s-.45 1-1 1c-.47 0-.85-.32-.95-.75l-2.52-.55-.77 3.62c1.52.07 2.93.48 4.02 1.15.37-.37.87-.6 1.42-.6 1.1 0 2 .9 2 2 0 .78-.43 1.46-1.1 1.83zM9.97 12c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm4.06 0c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm-5.15 4.08c-.13-.13-.13-.33 0-.46.13-.13.35-.13.48 0 .62.6 1.58.95 2.64.95s2.02-.35 2.64-.95c.13-.13.35-.13.48 0 .13.13.13.33 0 .46-.73.73-1.88 1.15-3.12 1.15s-2.39-.42-3.12-1.15z"/>
-                        </svg>
-                        View on Reddit
-                    </a>
+                    {/* CTA row */}
+                    <div className="flex gap-2">
+                        <a href={post.url} target="_blank" rel="noopener noreferrer"
+                            className={`flex-1 inline-flex items-center justify-center py-3 px-5 rounded-xl bg-gradient-to-r ${getSourceMeta(post).color} text-white font-semibold hover:opacity-90 transition-all shadow-lg gap-2 text-sm`}>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                            View on {getSourceMeta(post).name}
+                        </a>
+                        <button onClick={copyLink} className={`flex items-center gap-1.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all border ${copied ? 'bg-green-500/15 border-green-500/30 text-green-400' : 'bg-white/8 border-white/10 text-gray-400 hover:text-white hover:bg-white/12'}`}>
+                            {copied
+                                ? <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Copied!</>
+                                : <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg> Copy</>
+                            }
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -444,6 +493,7 @@ export default function App() {
     const [nextRefresh, setNextRefresh] = useState(Date.now() + 300000);
     const [showShortcuts, setShowShortcuts] = useState(false);
     const [view, setView] = useState('grid'); // 'grid' or 'trending'
+    const [activeSource, setActiveSource] = useState('all');
 
     const searchInputRef = useRef(null);
     const postsContainerRef = useRef(null);
@@ -551,9 +601,11 @@ export default function App() {
 
     // Filtered posts
     const displayedPosts = useMemo(() => {
-        if (!showFavoritesOnly) return posts;
-        return posts.filter(post => favorites.includes(post.reddit_id));
-    }, [posts, favorites, showFavoritesOnly]);
+        let p = posts;
+        if (activeSource !== 'all') p = p.filter(post => (post.source || 'reddit') === activeSource);
+        if (!showFavoritesOnly) return p;
+        return p.filter(post => favorites.includes(post.reddit_id));
+    }, [posts, favorites, showFavoritesOnly, activeSource]);
 
     // Trending posts (top 5 by upvotes)
     const trendingPosts = useMemo(() => {
@@ -678,9 +730,9 @@ export default function App() {
                             </div>
                             <div>
                                 <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">
-                                    Claude Reddit Aggregator
+                                    Claude Hub 🦅
                                 </h1>
-                                <p className="text-sm text-gray-400">Real-time AI news from Reddit</p>
+                                <p className="text-sm text-gray-400">Claude · OpenClaw · MoltBot · ClawdBot · Claude Code</p>
                             </div>
                         </div>
 
@@ -786,6 +838,43 @@ export default function App() {
 
                 {/* View Toggle & Filters */}
                 <div className="glass-card rounded-2xl p-5 mb-6">
+                    {/* Source filter tabs */}
+                    <div className="flex gap-2 overflow-x-auto pb-2 mb-5" style={{scrollbarWidth:'none',msOverflowStyle:'none'}}>
+                        {[
+                            { id: 'all',        label: 'All',         icon: '✦' },
+                            { id: 'reddit',     label: 'Reddit',      icon: '🔴' },
+                            { id: 'anthropic',  label: 'Anthropic',   icon: '🔵' },
+                            { id: 'openclaw',   label: 'OpenClaw',    icon: '🦅' },
+                            { id: 'moltbot',    label: 'MoltBot',     icon: '🤖' },
+                            { id: 'clawdbot',   label: 'ClawdBot',    icon: '📱' },
+                            { id: 'hackernews', label: 'Hacker News', icon: '🟠' },
+                            { id: 'github',     label: 'GitHub',      icon: '⚫' },
+                            { id: 'devto',      label: 'Dev.to',      icon: '🟣' },
+                        ].map(src => (
+                            <button key={src.id} onClick={() => { setActiveSource(src.id); setPage(1); }}
+                                className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all ${activeSource === src.id ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg' : 'bg-white/8 text-gray-400 hover:bg-white/14 hover:text-white'}`}>
+                                <span>{src.icon}</span><span>{src.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                    {/* Topic quick-search chips */}
+                    <div className="flex flex-wrap gap-2 mb-5">
+                        {[
+                            { label: '🤖 Claude',      q: 'claude' },
+                            { label: '💻 Claude Code', q: 'claude code' },
+                            { label: '🦅 OpenClaw',    q: 'openclaw' },
+                            { label: '🤖 MoltBot',     q: 'moltbot' },
+                            { label: '📱 ClawdBot',    q: 'clawdbot' },
+                            { label: '🏗 Anthropic',  q: 'anthropic' },
+                            { label: '🔌 MCP',         q: 'mcp' },
+                            { label: '🧰 AI Agents',   q: 'ai agent' },
+                        ].map(chip => (
+                            <button key={chip.q} onClick={() => { setSearchTerm(chip.q); setPage(1); setActiveSource('all'); }}
+                                className="px-3 py-1.5 rounded-full text-xs font-semibold bg-white/6 border border-white/8 text-gray-400 hover:text-white hover:bg-white/12 hover:border-purple-500/40 transition-all">
+                                {chip.label}
+                            </button>
+                        ))}
+                    </div>
                     {/* View toggle tabs */}
                     <div className="flex items-center space-x-2 mb-5">
                         <button
@@ -1008,7 +1097,7 @@ export default function App() {
                                 </svg>
                             </div>
                             <span className="text-gray-400 text-sm">
-                                Claude Reddit Aggregator | Real-time AI news aggregation
+                                Claude Hub 🦅 — Reddit · Anthropic · OpenClaw · MoltBot · ClawdBot · HN · GitHub · Dev.to
                             </span>
                         </div>
                         <div className="flex items-center space-x-4 text-sm text-gray-500">

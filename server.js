@@ -542,7 +542,6 @@ app.use(cors({
     origin: ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001']
 }));
 app.use(express.json({ limit: '10mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -709,7 +708,10 @@ app.get('/api/debug/reddit', async (req, res) => {
     }
 });
 
-// Serve React app for all other routes (catch-all for SPA)
+// Serve static files for non-API routes
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Serve React app for all other routes (catch-all for SPA — must be LAST)
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });

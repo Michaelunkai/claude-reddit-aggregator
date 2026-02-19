@@ -274,7 +274,7 @@ class PostsDatabase {
             postsLastWeek,
             subredditCounts,
             lastUpdated: this.posts.length > 0
-                ? Math.max(...this.posts.map(p => new Date(p.fetched_at).getTime()))
+                ? new Date(Math.max(...this.posts.map(p => new Date(p.created_at).getTime()))).toISOString()
                 : null
         };
     }

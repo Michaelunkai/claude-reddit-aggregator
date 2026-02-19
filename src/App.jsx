@@ -90,22 +90,38 @@ function PostCard({ post, isFavorite, onToggleFavorite, isSelected, onSelect, sh
     const isNew = (Date.now() - new Date(post.created_at).getTime()) < 2 * 60 * 60 * 1000;
     const isReddit = !post.source || post.source === 'reddit';
 
-    const formatDate = (dateString) => {
+    const formatDate = (dateString, source) => {
+        if (!dateString) return 'Unknown date';
         const date = new Date(dateString);
-        const now = new Date();
-        const diffMs = now - date;
+        if (isNaN(date)) return 'Unknown date';
+        const now = Date.now();
+        const diffMs = now - date.getTime();
         const diffMins = Math.floor(diffMs / 60000);
         const diffHours = Math.floor(diffMs / 3600000);
         const diffDays = Math.floor(diffMs / 86400000);
 
+        // Pinned official resources — show real date, not relative
+        const PINNED = new Set(['openclaw','moltbot','clawdbot']);
+        if (PINNED.has(source)) return date.toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
+
+        // GitHub repos — show "Updated X ago"
+        if (source === 'github') {
+            if (diffDays < 1) return `Updated ${diffHours}h ago`;
+            if (diffDays < 30) return `Updated ${diffDays}d ago`;
+            return `Updated ${date.toLocaleDateString('en-US', { month:'short', year:'numeric' })}`;
+        }
+
+        // Everything else — real relative time
+        if (diffMins < 1) return 'just now';
         if (diffMins < 60) return `${diffMins}m ago`;
         if (diffHours < 24) return `${diffHours}h ago`;
         if (diffDays < 7) return `${diffDays}d ago`;
-        return date.toLocaleDateString();
+        if (diffDays < 30) return `${diffDays}d ago`;
+        return date.toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
     };
 
     const excerpt = post.content
-        ? post.content.substring(0, 200) + (post.content.length > 200 ? '...' : '')
+        ? post.content.replace(/<[^>]+>/g, '').substring(0, 200) + (post.content.length > 200 ? '...' : '')
         : '';
 
     const subredditColors = {
@@ -193,23 +209,31 @@ function PostCard({ post, isFavorite, onToggleFavorite, isSelected, onSelect, sh
 
                 <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center space-x-4">
-                        <span className="flex items-center text-orange-400 font-medium">
-                            <svg className="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
-                            </svg>
-                            {post.upvotes.toLocaleString()}
-                        </span>
-                        <span className="flex items-center text-blue-400">
-                            <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                            </svg>
-                            {post.num_comments}
-                        </span>
+                        {post.source === 'github' ? (
+                            <span className="flex items-center text-yellow-400 font-medium">
+                                ⭐ {(post.upvotes || 0).toLocaleString()}
+                            </span>
+                        ) : (
+                            <span className="flex items-center text-orange-400 font-medium">
+                                <svg className="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
+                                </svg>
+                                {(post.upvotes || 0).toLocaleString()}
+                            </span>
+                        )}
+                        {post.source !== 'github' && (
+                            <span className="flex items-center text-blue-400">
+                                <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                </svg>
+                                {post.num_comments || 0}
+                            </span>
+                        )}
                     </div>
                     <div className="flex items-center space-x-2 text-gray-400">
                         <span className="truncate max-w-[100px]">{isReddit ? `u/${post.author}` : post.author}</span>
                         <span className="text-gray-600">|</span>
-                        <span className="text-purple-400">{formatDate(post.created_at)}</span>
+                        <span className="text-purple-400">{formatDate(post.created_at, post.source)}</span>
                     </div>
                 </div>
             </div>
@@ -251,7 +275,10 @@ function PostModal({ post, isOpen, onClose, isFavorite, onToggleFavorite }) {
     if (!isOpen || !post) return null;
 
     const formatDate = (dateString) => {
-        return new Date(dateString).toLocaleString();
+        if (!dateString) return 'Unknown';
+        const d = new Date(dateString);
+        if (isNaN(d)) return 'Unknown';
+        return d.toLocaleString('en-US', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
     };
 
     return (

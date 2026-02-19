@@ -285,16 +285,21 @@ async function fetchAnthropicBlog() {
 
 // ── Curated official resource cards ─────────────────────────────────────────
 function getCuratedResources() {
-    const now = new Date().toISOString();
+    // Real stable dates for official resources (not new Date() which causes fake "just now")
+    const OPENCLAW_BORN    = '2024-06-01T00:00:00.000Z';
+    const CLAWHUB_BORN     = '2024-07-01T00:00:00.000Z';
+    const MOLTBOT_BORN     = '2024-08-01T00:00:00.000Z';
+    const CLAUDE_CODE_BORN = '2024-10-01T00:00:00.000Z';
+    const ANTHROPIC_BORN   = '2023-03-01T00:00:00.000Z';
     return [
-        { reddit_id: 'oc_site',      title: '[OpenClaw] Official Website – openclaw.ai',           content: 'OpenClaw is a personal AI assistant platform running Claude at home. Supports Telegram, WhatsApp, Discord. Skill system, marathon mode, local extensions.',            author: 'openclaw',   subreddit: 'OpenClaw',    upvotes: 9999, num_comments: 0, created_at: now, url: 'https://openclaw.ai',                                     source: 'openclaw'  },
-        { reddit_id: 'oc_docs',      title: '[OpenClaw] Documentation & Guides',                    content: 'Complete OpenClaw docs: setup, skills, config, marathon mode, Android control, Telegram/WhatsApp integration.',                                                      author: 'openclaw',   subreddit: 'OpenClaw',    upvotes: 9998, num_comments: 0, created_at: now, url: 'https://docs.openclaw.ai',                                source: 'openclaw'  },
-        { reddit_id: 'oc_clawhub',   title: '[ClawHub] OpenClaw Skills Marketplace – clawhub.ai',  content: 'Browse hundreds of OpenClaw skills: research, debugging, stock prices, news, and more.',                                                                              author: 'openclaw',   subreddit: 'ClawHub',     upvotes: 9997, num_comments: 0, created_at: now, url: 'https://clawhub.ai',                                      source: 'openclaw'  },
-        { reddit_id: 'oc_discord',   title: '[OpenClaw] Community Discord Server',                  content: 'Join the OpenClaw Discord: help, skills, features, connect with other users.',                                                                                       author: 'openclaw',   subreddit: 'OpenClaw',    upvotes: 9996, num_comments: 0, created_at: now, url: 'https://discord.com/invite/clawd',                          source: 'openclaw'  },
-        { reddit_id: 'moltbot_site', title: '[MoltBot] Official MoltBook – AI Discord Bot',         content: 'MoltBot is an AI-powered Discord bot built on Claude. Create and deploy custom bots in your server via moltbook.com.',                                               author: 'moltbot',    subreddit: 'MoltBot',     upvotes: 9995, num_comments: 0, created_at: now, url: 'https://moltbook.com',                                     source: 'moltbot'   },
-        { reddit_id: 'clawd_site',   title: '[ClawdBot] Claude-powered Telegram & WhatsApp Bot',    content: 'ClawdBot delivers Claude AI directly in Telegram and WhatsApp with full skill support and real-time notifications.',                                                  author: 'openclaw',   subreddit: 'ClawdBot',    upvotes: 9994, num_comments: 0, created_at: now, url: 'https://openclaw.ai',                                     source: 'clawdbot'  },
-        { reddit_id: 'cc_docs',      title: '[Claude Code] Official Claude Code Documentation',     content: "Anthropic's official CLI for Claude. Install, CLAUDE.md optimisation, tool use, memory, best practices.",                                                            author: 'anthropic',  subreddit: 'ClaudeCode',  upvotes: 9993, num_comments: 0, created_at: now, url: 'https://docs.anthropic.com/en/docs/claude-code',           source: 'anthropic' },
-        { reddit_id: 'api_docs',     title: '[Anthropic] Claude API Documentation',                 content: 'All Claude models, messages API, tool use, vision, streaming, system prompts, rate limits, Python/TypeScript SDKs.',                                                 author: 'anthropic',  subreddit: 'AnthropicBlog', upvotes: 9992, num_comments: 0, created_at: now, url: 'https://docs.anthropic.com',                            source: 'anthropic' },
+        { reddit_id: 'oc_site',      title: 'OpenClaw Official Website',                    content: 'OpenClaw: personal AI assistant running Claude at home. Telegram, WhatsApp, Discord, skill system, marathon mode.',                      author: 'openclaw',  subreddit: 'OpenClaw',    upvotes: 9999, num_comments: 0, created_at: OPENCLAW_BORN,     url: 'https://openclaw.ai',                                    source: 'openclaw'  },
+        { reddit_id: 'oc_docs',      title: 'OpenClaw Documentation & Guides',               content: 'Complete OpenClaw docs: setup, skills, config, marathon mode, Android control, Telegram/WhatsApp integration.',                         author: 'openclaw',  subreddit: 'OpenClaw',    upvotes: 9998, num_comments: 0, created_at: OPENCLAW_BORN,     url: 'https://docs.openclaw.ai',                               source: 'openclaw'  },
+        { reddit_id: 'oc_clawhub',   title: 'ClawHub: OpenClaw Skills Marketplace',          content: 'Browse hundreds of OpenClaw skills: research, debugging, stock prices, news, and more. clawhub.ai',                                    author: 'openclaw',  subreddit: 'ClawHub',     upvotes: 9997, num_comments: 0, created_at: CLAWHUB_BORN,     url: 'https://clawhub.ai',                                     source: 'openclaw'  },
+        { reddit_id: 'oc_discord',   title: 'OpenClaw Community Discord Server',             content: 'Join the OpenClaw Discord: get help, share skills, discuss features, connect with users.',                                             author: 'openclaw',  subreddit: 'OpenClaw',    upvotes: 9996, num_comments: 0, created_at: OPENCLAW_BORN,     url: 'https://discord.com/invite/clawd',                       source: 'openclaw'  },
+        { reddit_id: 'moltbot_site', title: 'MoltBot: AI-powered Discord Bot via Moltbook',  content: 'MoltBot is a Claude-powered Discord bot. Create and deploy custom AI bots in your server via moltbook.com.',                           author: 'moltbot',   subreddit: 'MoltBot',     upvotes: 9995, num_comments: 0, created_at: MOLTBOT_BORN,     url: 'https://moltbook.com',                                   source: 'moltbot'   },
+        { reddit_id: 'clawd_site',   title: 'ClawdBot: Claude AI in Telegram & WhatsApp',    content: 'ClawdBot delivers Claude AI in Telegram and WhatsApp with full skill support and real-time notifications.',                            author: 'openclaw',  subreddit: 'ClawdBot',    upvotes: 9994, num_comments: 0, created_at: OPENCLAW_BORN,     url: 'https://openclaw.ai',                                    source: 'clawdbot'  },
+        { reddit_id: 'cc_docs',      title: 'Claude Code: Official CLI Documentation',       content: "Anthropic's official CLI for Claude. Install, CLAUDE.md optimisation, tool use, memory management, best practices.",                   author: 'anthropic', subreddit: 'ClaudeCode',  upvotes: 9993, num_comments: 0, created_at: CLAUDE_CODE_BORN,  url: 'https://docs.anthropic.com/en/docs/claude-code',         source: 'anthropic' },
+        { reddit_id: 'api_docs',     title: 'Anthropic Claude API Documentation',            content: 'All Claude models, messages API, tool use, vision, streaming, system prompts, rate limits, Python/TypeScript SDKs.',                   author: 'anthropic', subreddit: 'AnthropicBlog', upvotes: 9992, num_comments: 0, created_at: ANTHROPIC_BORN,    url: 'https://docs.anthropic.com',                             source: 'anthropic' },
     ];
 }
 
@@ -327,10 +332,10 @@ async function fetchSubredditPosts(subreddit, token, retries = 3) {
             const posts = data.data.children.map(child => child.data);
 
             // Filter posts from last 30 days containing Claude-related keywords
-            const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+            const fourteenDaysAgo = Date.now() - (14 * 24 * 60 * 60 * 1000);
             const filteredPosts = posts.filter(post => {
                 const postTime = post.created_utc * 1000;
-                if (postTime < sevenDaysAgo) return false;
+                if (postTime < fourteenDaysAgo) return false;
 
                 const titleLower = post.title.toLowerCase();
                 const bodyLower = (post.selftext || '').toLowerCase();
@@ -392,7 +397,7 @@ let fetchInProgress = false;
 async function fetchAllPosts() {
     if (fetchInProgress) {
         log('info', 'Fetch already in progress, skipping');
-        return db.getPosts({ page: 1, limit: 500, daysBack: 7 }).posts || [];
+        return db.getPosts({ page: 1, limit: 500, daysBack: 90 }).posts || [];
     }
     fetchInProgress = true;
     try {
@@ -518,7 +523,7 @@ app.get('/api/posts', async (req, res) => {
             page: parseInt(page),
             limit: Math.min(parseInt(limit), 100),
             minUpvotes: parseInt(minUpvotes),
-            daysBack: 7  // last 7 days for Reddit; pinned sources exempt in db.js
+            daysBack: 90  // 90 days window; pinned sources (openclaw/github/etc) exempt in db.js
         });
 
         res.json({

@@ -100,7 +100,7 @@ class PostsDatabase {
         let filtered = [...this.posts];
 
         // Filter by date — pinned sources (curated/official) are never date-filtered
-        const PINNED_SOURCES = new Set(['openclaw','moltbot','clawdbot','anthropic','github']);
+        const PINNED_SOURCES = new Set(['openclaw','moltbot','clawdbot','anthropic','github','devto','hackernews']);
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - daysBack);
         filtered = filtered.filter(p =>

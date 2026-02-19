@@ -463,7 +463,7 @@ export default function App() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [sortBy, setSortBy] = useState('created_at');
+    const [sortBy, setSortBy] = useState('upvotes');
     const [sortOrder, setSortOrder] = useState('desc');
     const [page, setPage] = useState(1);
     const [pagination, setPagination] = useState({ total: 0, totalPages: 0 });
@@ -524,8 +524,11 @@ export default function App() {
     useEffect(() => {
         const socket = io(API_URL, {
             reconnection: true,
-            reconnectionAttempts: 10,
-            reconnectionDelay: 1000
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 500,
+            reconnectionDelayMax: 3000,
+            timeout: 10000,
+            transports: ['websocket', 'polling'],
         });
 
         socket.on('connect', () => {
@@ -539,7 +542,7 @@ export default function App() {
         socket.on('posts-updated', (data) => {
             setLastUpdated(new Date().toISOString());
             setNextRefresh(Date.now() + 300000);
-            fetchPosts();
+            fetchPosts(true); // silent — no spinner, keeps showing old posts
         });
 
         socket.on('stats', (data) => {
@@ -552,9 +555,9 @@ export default function App() {
     }, []);
 
     // Fetch posts
-    const fetchPosts = useCallback(async () => {
+    const fetchPosts = useCallback(async (silent = false) => {
         try {
-            setLoading(true);
+            if (!silent) setLoading(true);
             setError(null);
 
             const params = new URLSearchParams({
@@ -578,7 +581,7 @@ export default function App() {
                 throw new Error(data.error || 'Unknown error');
             }
         } catch (err) {
-            setError(err.message);
+            if (!silent) setError(err.message);
         } finally {
             setLoading(false);
         }

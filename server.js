@@ -101,69 +101,187 @@ const DEDICATED_SUBS = new Set(['claude', 'claudeai', 'claudedev', 'anthropicai'
 
 // ── Hacker News ─────────────────────────────────────────────────────────────
 async function fetchHackerNews() {
-    const queries = ['claude anthropic', 'claude code', 'openclaw', 'moltbot', 'clawdbot', 'anthropic AI'];
+    const queries = [
+        'claude anthropic', 'claude code', 'openclaw', 'moltbot', 'clawdbot',
+        'anthropic AI', 'claude AI assistant', 'clawhub', 'anthropic model',
+    ];
     const results = [];
+    const seen = new Set();
     for (const q of queries) {
         try {
-            const resp = await axios.get(`https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(q)}&tags=story&hitsPerPage=15`, { timeout: 8000 });
+            const resp = await axios.get(
+                `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(q)}&tags=story&hitsPerPage=20&numericFilters=points>1`,
+                { timeout: 10000 }
+            );
             for (const hit of (resp.data.hits || [])) {
-                if (!hit.objectID) continue;
-                results.push({ reddit_id: `hn_${hit.objectID}`, title: `[HN] ${hit.title || '(no title)'}`, content: (hit.story_text || '').replace(/<[^>]+>/g, '').substring(0, 600), author: hit.author || 'unknown', subreddit: 'HackerNews', upvotes: hit.points || 0, num_comments: hit.num_comments || 0, created_at: new Date(hit.created_at).toISOString(), url: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`, source: 'hackernews' });
+                if (!hit.objectID || seen.has(hit.objectID)) continue;
+                seen.add(hit.objectID);
+                results.push({
+                    reddit_id: `hn_${hit.objectID}`,
+                    title: hit.title || '(no title)',
+                    content: (hit.story_text || '').replace(/<[^>]+>/g, '').substring(0, 600),
+                    author: hit.author || 'unknown',
+                    subreddit: 'HackerNews',
+                    upvotes: hit.points || 0,
+                    num_comments: hit.num_comments || 0,
+                    created_at: new Date(hit.created_at).toISOString(),
+                    url: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,
+                    source: 'hackernews',
+                });
             }
-            await new Promise(r => setTimeout(r, 400));
+            await new Promise(r => setTimeout(r, 300));
         } catch (e) { log('warn', `HN failed: ${q}`, { error: e.message }); }
     }
+    log('info', `HN: fetched ${results.length} stories`);
     return results;
 }
 
 // ── GitHub ───────────────────────────────────────────────────────────────────
 async function fetchGitHub() {
-    const queries = ['openclaw', 'clawdbot', 'moltbot', 'claude-code', 'anthropic claude', 'clawhub'];
+    // Search both repos AND issues/discussions for more coverage
+    const repoQueries = ['openclaw', 'clawdbot', 'moltbot', 'claude-code anthropic', 'clawhub skills', 'anthropic claude sdk'];
     const results = [];
-    const headers = { 'User-Agent': 'ClaudeAggregator/2.0' };
+    const seen = new Set();
+    const headers = {
+        'User-Agent': 'ClaudeAggregator/2.0',
+        'Accept': 'application/vnd.github.v3+json',
+    };
     if (process.env.GITHUB_TOKEN) headers['Authorization'] = `token ${process.env.GITHUB_TOKEN}`;
-    for (const q of queries) {
+
+    for (const q of repoQueries) {
         try {
-            const resp = await axios.get(`https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=updated&per_page=8`, { headers, timeout: 8000 });
+            const resp = await axios.get(
+                `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc&per_page=10`,
+                { headers, timeout: 10000 }
+            );
             for (const repo of (resp.data.items || [])) {
-                results.push({ reddit_id: `gh_${repo.id}`, title: `[GitHub] ${repo.full_name} – ${(repo.description || 'No description').substring(0, 100)}`, content: (repo.description || '') + (repo.topics?.length ? '\nTopics: ' + repo.topics.join(', ') : ''), author: repo.owner.login, subreddit: 'GitHub', upvotes: repo.stargazers_count, num_comments: repo.open_issues_count, created_at: repo.updated_at, url: repo.html_url, source: 'github' });
+                if (seen.has(`repo_${repo.id}`)) continue;
+                seen.add(`repo_${repo.id}`);
+                results.push({
+                    reddit_id: `gh_${repo.id}`,
+                    title: `${repo.full_name} — ${(repo.description || 'No description').substring(0, 100)}`,
+                    content: (repo.description || '') + (repo.topics?.length ? '\nTopics: ' + repo.topics.join(', ') : '') + `\nStars: ${repo.stargazers_count} | Language: ${repo.language || 'N/A'}`,
+                    author: repo.owner.login,
+                    subreddit: 'GitHub',
+                    upvotes: repo.stargazers_count,
+                    num_comments: repo.open_issues_count,
+                    created_at: repo.updated_at,
+                    url: repo.html_url,
+                    source: 'github',
+                });
             }
-            await new Promise(r => setTimeout(r, 500));
-        } catch (e) { log('warn', `GitHub failed: ${q}`, { error: e.message }); }
+            await new Promise(r => setTimeout(r, 400));
+        } catch (e) { log('warn', `GitHub repos failed: ${q}`, { error: e.message }); }
     }
+    log('info', `GitHub: fetched ${results.length} repos`);
     return results;
 }
 
 // ── Dev.to ───────────────────────────────────────────────────────────────────
 async function fetchDevTo() {
-    const tags = ['claude', 'anthropic', 'claudeai', 'aitools', 'llm', 'aiagents'];
+    // Fetch by tag — all of these are directly relevant, no extra filtering needed
+    const tagFetches = [
+        { tag: 'claude',       relevant: true },
+        { tag: 'anthropic',    relevant: true },
+        { tag: 'claudeai',     relevant: true },
+        { tag: 'claudecode',   relevant: true },
+        { tag: 'aitools',      relevant: false }, // filter
+        { tag: 'llm',          relevant: false }, // filter
+        { tag: 'aiagents',     relevant: false }, // filter
+        { tag: 'mcp',          relevant: false }, // filter
+    ];
     const results = [];
-    for (const tag of tags) {
+    const seen = new Set();
+    for (const { tag, relevant } of tagFetches) {
         try {
-            const resp = await axios.get(`https://dev.to/api/articles?tag=${tag}&per_page=15&top=7`, { timeout: 8000, headers: { 'User-Agent': 'ClaudeAggregator/2.0' } });
+            const resp = await axios.get(
+                `https://dev.to/api/articles?tag=${tag}&per_page=20&top=30`,
+                { timeout: 10000, headers: { 'User-Agent': 'ClaudeAggregator/2.0', 'api-key': process.env.DEVTO_API_KEY || '' } }
+            );
             for (const art of (resp.data || [])) {
-                const text = ((art.title || '') + ' ' + (art.description || '')).toLowerCase();
-                if (!DEDICATED_SUBS.has(tag) && !TOPIC_KEYWORDS.some(kw => text.includes(kw))) continue;
-                results.push({ reddit_id: `devto_${art.id}`, title: `[Dev.to] ${art.title}`, content: art.description || '', author: art.user?.username || 'unknown', subreddit: 'DevTo', upvotes: art.positive_reactions_count || 0, num_comments: art.comments_count || 0, created_at: art.published_at, url: art.url, source: 'devto' });
+                if (seen.has(art.id)) continue;
+                if (!relevant) {
+                    const text = ((art.title || '') + ' ' + (art.description || '')).toLowerCase();
+                    if (!TOPIC_KEYWORDS.some(kw => text.includes(kw.toLowerCase()))) continue;
+                }
+                seen.add(art.id);
+                results.push({
+                    reddit_id: `devto_${art.id}`,
+                    title: art.title,
+                    content: art.description || '',
+                    author: art.user?.username || 'unknown',
+                    subreddit: 'DevTo',
+                    upvotes: (art.positive_reactions_count || 0) + (art.public_reactions_count || 0),
+                    num_comments: art.comments_count || 0,
+                    created_at: art.published_at || new Date().toISOString(),
+                    url: art.url,
+                    source: 'devto',
+                });
             }
-            await new Promise(r => setTimeout(r, 350));
+            await new Promise(r => setTimeout(r, 300));
         } catch (e) { log('warn', `Dev.to failed: ${tag}`, { error: e.message }); }
     }
+    log('info', `Dev.to: fetched ${results.length} articles`);
     return results;
 }
 
 // ── Anthropic Blog RSS ───────────────────────────────────────────────────────
 async function fetchAnthropicBlog() {
+    // Try multiple URLs in case one changes
+    const feedUrls = [
+        'https://www.anthropic.com/rss.xml',
+        'https://www.anthropic.com/news/rss.xml',
+    ];
+    for (const feedUrl of feedUrls) {
+        try {
+            const resp = await axios.get(feedUrl, {
+                timeout: 10000,
+                headers: { 'User-Agent': 'ClaudeAggregator/2.0', 'Accept': 'application/rss+xml, application/xml, text/xml' },
+            });
+            const xml = resp.data;
+            const items = (xml.match(/<item>([\s\S]*?)<\/item>/g) || []).slice(0, 20);
+            if (items.length === 0) continue;
+            const posts = items.map((item, idx) => {
+                const getField = (re1, re2) => (item.match(re1) || item.match(re2) || [])[1] || '';
+                const title = getField(/<title><!\[CDATA\[(.*?)\]\]>/, /<title>(.*?)<\/title>/) || 'Anthropic Update';
+                const link  = getField(/<link>(.*?)<\/link>/, /<guid>(.*?)<\/guid>/) || 'https://www.anthropic.com/news';
+                const desc  = getField(/<description><!\[CDATA\[(.*?)\]\]>/, /<description>(.*?)<\/description>/).replace(/<[^>]+>/g, '').substring(0, 600);
+                const pub   = getField(/<pubDate>(.*?)<\/pubDate>/, /<dc:date>(.*?)<\/dc:date>/);
+                return {
+                    reddit_id: `anthropic_blog_${idx}`,
+                    title,
+                    content: desc,
+                    author: 'Anthropic',
+                    subreddit: 'AnthropicBlog',
+                    upvotes: 9999,
+                    num_comments: 0,
+                    created_at: pub ? new Date(pub).toISOString() : new Date().toISOString(),
+                    url: link.trim(),
+                    source: 'anthropic',
+                };
+            });
+            log('info', `Anthropic blog: fetched ${posts.length} posts from ${feedUrl}`);
+            return posts;
+        } catch (e) { log('warn', `Anthropic blog failed: ${feedUrl}`, { error: e.message }); }
+    }
+    // Fallback: scrape news page titles if RSS is down
     try {
-        const resp = await axios.get('https://www.anthropic.com/rss.xml', { timeout: 8000, headers: { 'User-Agent': 'ClaudeAggregator/2.0' } });
-        return (resp.data.match(/<item>([\s\S]*?)<\/item>/g) || []).slice(0, 15).map((item, idx) => {
-            const title = (item.match(/<title><!\[CDATA\[(.*?)\]\]>/) || item.match(/<title>(.*?)<\/title>/) || [])[1] || 'Anthropic Update';
-            const link  = (item.match(/<link>(.*?)<\/link>/) || [])[1] || 'https://www.anthropic.com/news';
-            const desc  = ((item.match(/<description><!\[CDATA\[(.*?)\]\]>/) || item.match(/<description>(.*?)<\/description>/) || [])[1] || '').replace(/<[^>]+>/g, '').substring(0, 500);
-            const pub   = (item.match(/<pubDate>(.*?)<\/pubDate>/) || [])[1] || new Date().toISOString();
-            return { reddit_id: `anthropic_blog_${idx}_${Date.now()}`, title: `[Anthropic] ${title}`, content: desc, author: 'Anthropic', subreddit: 'AnthropicBlog', upvotes: 9999, num_comments: 0, created_at: new Date(pub).toISOString(), url: link, source: 'anthropic' };
-        });
-    } catch (e) { log('warn', 'Anthropic blog failed', { error: e.message }); return []; }
+        const resp = await axios.get('https://www.anthropic.com/news', { timeout: 10000, headers: { 'User-Agent': 'ClaudeAggregator/2.0' } });
+        const titles = [...(resp.data.matchAll(/<h[23][^>]*>(.*?)<\/h[23]>/gs) || [])].slice(0, 10).map(m => m[1].replace(/<[^>]+>/g, '').trim()).filter(Boolean);
+        log('info', `Anthropic blog fallback: scraped ${titles.length} titles`);
+        return titles.map((title, idx) => ({
+            reddit_id: `anthropic_news_${idx}`,
+            title,
+            content: 'Visit anthropic.com/news for the full article.',
+            author: 'Anthropic',
+            subreddit: 'AnthropicBlog',
+            upvotes: 9990 - idx,
+            num_comments: 0,
+            created_at: new Date().toISOString(),
+            url: 'https://www.anthropic.com/news',
+            source: 'anthropic',
+        }));
+    } catch (e2) { log('warn', 'Anthropic fallback also failed', { error: e2.message }); return []; }
 }
 
 // ── Curated official resource cards ─────────────────────────────────────────
@@ -268,14 +386,33 @@ async function fetchSubredditPosts(subreddit, token, retries = 3) {
     return [];
 }
 
+// Track whether a fetch is already running (prevent concurrent fetches)
+let fetchInProgress = false;
+
 // Fetch posts from all sources (Reddit + HN + GitHub + Dev.to + Anthropic Blog + curated)
 async function fetchAllPosts() {
+    if (fetchInProgress) {
+        log('info', 'Fetch already in progress, skipping');
+        return db.getPosts({ page: 1, limit: 500, daysBack: 30 }).posts || [];
+    }
+    fetchInProgress = true;
+    try {
+
     const subreddits = [
-        'ClaudeAI', 'claude', 'claudedev', 'AnthropicAI',
-        'ClaudeCode', 'AICoding', 'vibecoding', 'cursor_ai', 'AIdev',
+        // Claude / Anthropic dedicated — all posts included
+        'ClaudeAI', 'claude', 'claudedev', 'AnthropicAI', 'ClaudeCode',
+        // AI coding tools
+        'AICoding', 'vibecoding', 'cursor_ai', 'AIdev', 'ArtificialIntelligence',
+        'GPT4', 'Bing', 'perplexity_ai', 'aipromptprogramming',
+        // AI agents / MCP
+        'AIAgents', 'PromptEngineering', 'LangChain', 'AutoGPT',
+        // General AI
         'OpenAI', 'MachineLearning', 'LocalLLaMA', 'artificial', 'singularity',
-        'ChatGPT', 'Bard', 'perplexity_ai', 'aipromptprogramming',
-        'AIAgents', 'PromptEngineering',
+        'ChatGPT', 'Bard', 'learnmachinelearning', 'deeplearning',
+        // Tech / Dev
+        'programming', 'webdev', 'learnprogramming', 'compsci', 'technology',
+        // Discord / bots
+        'discordapp', 'Discord_Bots',
     ];
     const token = await getRedditToken();
 
@@ -303,10 +440,20 @@ async function fetchAllPosts() {
 
     if (uniquePosts.length > 0) {
         db.upsertPosts(uniquePosts);
-        log('info', `Saved ${uniquePosts.length} unique posts`, { reddit: redditResults.flat().length, hn: hn.length, github: gh.length, devto: devto.length, anthropic: blog.length, curated: curated.length });
+        log('info', `Saved ${uniquePosts.length} unique posts`, {
+            reddit: redditResults.flat().length, hn: hn.length,
+            github: gh.length, devto: devto.length,
+            anthropic: blog.length, curated: curated.length,
+        });
     }
 
     return uniquePosts;
+    } catch(err) {
+        log('error', 'fetchAllPosts error', { error: err.message });
+        return [];
+    } finally {
+        fetchInProgress = false;
+    }
 }
 
 // Initialize Express app
@@ -405,21 +552,15 @@ app.get('/api/stats', (req, res) => {
 app.post('/api/refresh', async (req, res) => {
     try {
         log('info', 'Manual refresh triggered');
-        const posts = await fetchAllPosts();
-        io.emit('posts-updated', {
-            count: posts.length,
-            timestamp: new Date().toISOString()
-        });
-        res.json({
-            success: true,
-            message: `Refreshed ${posts.length} posts`
-        });
+        // Respond immediately so UI doesn't wait
+        res.json({ success: true, message: 'Refresh started' });
+        // Fetch in background — UI gets posts-updated event when done
+        fetchAllPosts().then(posts => {
+            io.emit('posts-updated', { count: posts.length, timestamp: new Date().toISOString() });
+        }).catch(err => log('error', 'Background refresh error', { error: err.message }));
     } catch (error) {
         log('error', 'Error during manual refresh', { error: error.message });
-        res.status(500).json({
-            success: false,
-            error: 'Failed to refresh posts'
-        });
+        res.status(500).json({ success: false, error: 'Failed to refresh posts' });
     }
 });
 
@@ -486,17 +627,13 @@ async function startPolling() {
     // Create backup after initial fetch
     db.backup();
 
-    // Set up interval
-    pollInterval = setInterval(async () => {
-        try {
-            const posts = await fetchAllPosts();
-            io.emit('posts-updated', {
-                count: posts.length,
-                timestamp: new Date().toISOString()
-            });
-        } catch (error) {
-            log('error', 'Polling error', { error: error.message });
-        }
+    // Set up interval — non-blocking background fetch
+    pollInterval = setInterval(() => {
+        fetchAllPosts()
+            .then(posts => {
+                io.emit('posts-updated', { count: posts.length, timestamp: new Date().toISOString() });
+            })
+            .catch(error => log('error', 'Polling error', { error: error.message }));
     }, POLL_INTERVAL);
 }
 

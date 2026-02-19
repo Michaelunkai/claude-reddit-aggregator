@@ -1,0 +1,24 @@
+fix: external sources, default sort, no-flicker refresh + more subreddits
+
+FIX 1 - External sources now actually work:
+- HN: broader queries, dedup by objectID, filters low-quality (points>1), 20 results/query
+- GitHub: sort by stars not updated, accept-header fix, richer content (language/topics)
+- Dev.to: removed broken DEDICATED_SUBS filter, all claude/anthropic/claudeai/claudecode tags pass through unfiltered, reaction count includes public_reactions, added claudecode + mcp tags
+- Anthropic Blog: tries two RSS URLs, fallback to news page scraper if both fail, stable reddit_id (no timestamp), handles dc:date, strips HTML from desc properly
+
+FIX 2 - Default sort:
+- App.jsx: sortBy default changed from 'created_at' to 'upvotes'
+- Website now always opens showing most upvoted content first
+
+FIX 3 - Zero-flicker refresh:
+- fetchPosts() accepts silent=true flag — no spinner, keeps showing old posts during background refresh
+- Socket posts-updated event calls fetchPosts(true) — seamless update
+- Polling interval is now non-blocking (.then chain instead of await)
+- Background refresh guard (fetchInProgress flag) prevents concurrent fetches
+- fetchAllPosts wrapped in try/finally so flag always resets
+- Manual refresh endpoint responds immediately, runs fetch in background
+- Socket reconnection: Infinity attempts, 500ms delay, 3s max, websocket+polling transports
+
+FIX 4 - More subreddits (31 total, up from 21):
+Added: ArtificialIntelligence, GPT4, Bing, LangChain, AutoGPT, learnmachinelearning,
+deeplearning, programming, webdev, learnprogramming, compsci, technology, Discord_Bots

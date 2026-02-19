@@ -4,6 +4,10 @@ services:
     runtime: node
     buildCommand: npm install && npm run build
     startCommand: node server.js
+    autoDeploy: true
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
+      - key: POLL_INTERVAL
+        value: 300000

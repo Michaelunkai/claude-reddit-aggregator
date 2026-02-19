@@ -61,7 +61,8 @@ class PostsDatabase {
             num_comments: post.num_comments || 0,
             created_at: post.created_at,
             fetched_at: now,
-            url: post.url
+            url: post.url,
+            source: post.source || 'reddit',
         };
 
         if (index >= 0) {
@@ -98,10 +99,13 @@ class PostsDatabase {
 
         let filtered = [...this.posts];
 
-        // Filter by date
+        // Filter by date — pinned sources (curated/official) are never date-filtered
+        const PINNED_SOURCES = new Set(['openclaw','moltbot','clawdbot','anthropic','github']);
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - daysBack);
-        filtered = filtered.filter(p => new Date(p.created_at) >= cutoffDate);
+        filtered = filtered.filter(p =>
+            PINNED_SOURCES.has(p.source || '') || new Date(p.created_at) >= cutoffDate
+        );
 
         // Filter by minimum upvotes
         if (minUpvotes > 0) {

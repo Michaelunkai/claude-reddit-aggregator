@@ -616,19 +616,36 @@ export default function App() {
     }, [posts]);
 
     // Subreddit stats
+    // All subreddits always shown — not dependent on current DB contents
+    const ALL_SUBREDDITS = [
+        'ClaudeAI','claude','claudedev','AnthropicAI','ClaudeCode',
+        'AICoding','vibecoding','cursor_ai','AIdev','ArtificialIntelligence',
+        'GPT4','perplexity_ai','aipromptprogramming',
+        'AIAgents','PromptEngineering','LangChain','AutoGPT',
+        'OpenAI','MachineLearning','LocalLLaMA','artificial','singularity',
+        'ChatGPT','Bard','learnmachinelearning','deeplearning',
+        'programming','webdev','learnprogramming','compsci','technology',
+        'discordapp','Discord_Bots',
+    ];
+
     const subredditStats = useMemo(() => {
-        const NON_REDDIT = new Set(['HackerNews','GitHub','DevTo','AnthropicBlog','OpenClaw','ClawHub','MoltBot','ClawdBot','ClaudeCode']);
         const counts = {};
+        // Seed all known subreddits with 0 so they always appear
+        ALL_SUBREDDITS.forEach(s => { counts[s] = 0; });
         posts.forEach(post => {
             if (!post.source || post.source === 'reddit') {
-                if (!NON_REDDIT.has(post.subreddit)) {
-                    counts[post.subreddit] = (counts[post.subreddit] || 0) + 1;
+                if (counts.hasOwnProperty(post.subreddit)) {
+                    counts[post.subreddit]++;
                 }
             }
         });
         return Object.entries(counts)
             .map(([name, count]) => ({ name, count }))
-            .sort((a, b) => b.count - a.count);
+            .sort((a, b) => {
+                // Sort: subreddits with posts first, then alphabetically
+                if (b.count !== a.count) return b.count - a.count;
+                return a.name.localeCompare(b.name);
+            });
     }, [posts]);
 
     // Handle refresh

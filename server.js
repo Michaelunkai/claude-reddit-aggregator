@@ -328,10 +328,10 @@ async function fetchSubredditPosts(subreddit, token, retries = 3) {
             const posts = data.data.children.map(child => child.data);
 
             // Filter posts from last 30 days containing Claude-related keywords
-            const oneYearAgo = Date.now() - (365 * 24 * 60 * 60 * 1000);
+            const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
             const filteredPosts = posts.filter(post => {
                 const postTime = post.created_utc * 1000;
-                if (postTime < oneYearAgo) return false;
+                if (postTime < sevenDaysAgo) return false;
 
                 const titleLower = post.title.toLowerCase();
                 const bodyLower = (post.selftext || '').toLowerCase();
@@ -393,7 +393,7 @@ let fetchInProgress = false;
 async function fetchAllPosts() {
     if (fetchInProgress) {
         log('info', 'Fetch already in progress, skipping');
-        return db.getPosts({ page: 1, limit: 500, daysBack: 365 }).posts || [];
+        return db.getPosts({ page: 1, limit: 500, daysBack: 7 }).posts || [];
     }
     fetchInProgress = true;
     try {
@@ -515,7 +515,7 @@ app.get('/api/posts', async (req, res) => {
             page: parseInt(page),
             limit: Math.min(parseInt(limit), 100),
             minUpvotes: parseInt(minUpvotes),
-            daysBack: 365  // show up to 1 year of posts
+            daysBack: 7  // last 7 days for Reddit; pinned sources exempt in db.js
         });
 
         res.json({

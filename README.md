@@ -131,6 +131,22 @@ claude-reddit-aggregator/
 └── backups/           # Daily backups
 ```
 
+## CI/CD — Auto Deploy on Push
+
+Every push to `main` automatically:
+1. Installs deps & rebuilds the frontend bundle
+2. Commits the bundle if changed
+3. Triggers a **Render deploy hook** → site updates in ~60 seconds
+
+### Setup (one-time)
+
+1. Go to your Render dashboard → **claude-reddit-aggregator** service → **Settings** → **Deploy Hook** → copy the URL
+2. Go to your GitHub repo → **Settings** → **Secrets and variables** → **Actions** → add:
+   - Name: `RENDER_DEPLOY_HOOK_URL`
+   - Value: (paste the Render deploy hook URL)
+
+That's it. Every `git push origin main` will auto-deploy the live site.
+
 ## License
 
 MIT

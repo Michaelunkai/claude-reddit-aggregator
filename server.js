@@ -514,6 +514,8 @@ async function fetchAllPosts() {
     try {
 
     log('info', 'Starting multi-source fetch (no-auth Reddit strategies)');
+    lastFetchStatus.inProgress = true;
+    lastFetchStatus.lastAttempt = new Date().toISOString();
 
     // Run all sources in parallel — each wrapped so one failure doesn't kill others
     const [hn, gh, devto, blog, curated, reddit] = await Promise.all([
@@ -525,6 +527,8 @@ async function fetchAllPosts() {
         fetchAllRedditPosts().catch(e => { log('error', 'Reddit fetch failed', { error: e.message }); return []; }),
     ]);
 
+    lastFetchStatus.sourceCounts = { reddit: reddit.length, hn: hn.length, gh: gh.length, devto: devto.length, anthropic: blog.length };
+    
     const allPosts = [...curated, ...blog, ...hn, ...gh, ...devto, ...reddit];
 
     // Deduplicate by reddit_id
@@ -540,12 +544,16 @@ async function fetchAllPosts() {
         });
     }
 
+    lastFetchStatus.lastSuccess = new Date().toISOString();
+    lastFetchStatus.lastError = null;
     return uniquePosts;
     } catch(err) {
         log('error', 'fetchAllPosts error', { error: err.message });
+        lastFetchStatus.lastError = err.message;
         return [];
     } finally {
         fetchInProgress = false;
+        lastFetchStatus.inProgress = false;
     }
 }
 
@@ -669,10 +677,31 @@ app.get('/api/sources', (req, res) => {
     ]});
 });
 
+// Track fetch status
+let lastFetchStatus = {
+    inProgress: false,
+    lastAttempt: null,
+    lastSuccess: null,
+    lastError: null,
+    sourceCounts: {},
+};
+
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'healthy',
         uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+        fetchInProgress: lastFetchStatus.inProgress,
+        lastFetchSuccess: lastFetchStatus.lastSuccess,
+    });
+});
+
+// Debug endpoint to see fetch status
+app.get('/api/debug/fetch-status', (req, res) => {
+    res.json({
+        success: true,
+        fetchStatus: lastFetchStatus,
+        dbPostCount: db.posts?.length || 0,
         timestamp: new Date().toISOString()
     });
 });

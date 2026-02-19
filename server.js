@@ -41,50 +41,47 @@ function log(level, message, data = null) {
 // Initialize database
 const db = new PostsDatabase();
 
-// OAuth token cache
-let tokenCache = {
-    token: null,
-    expiresAt: 0
-};
+// Rotating User-Agents to avoid Reddit rate limiting
+const USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
+];
+let uaIndex = 0;
+function getUA() { return USER_AGENTS[uaIndex++ % USER_AGENTS.length]; }
 
-// Get Reddit OAuth token
-async function getRedditToken() {
-    if (tokenCache.token && Date.now() < tokenCache.expiresAt) {
-        return tokenCache.token;
-    }
+// Reddit hosts in preference order (old.reddit.com = no redirect, same JSON API)
+const REDDIT_HOSTS = ['old.reddit.com', 'www.reddit.com', 'reddit.com'];
 
-    const clientId = process.env.REDDIT_CLIENT_ID;
-    const clientSecret = process.env.REDDIT_CLIENT_SECRET;
-
-    if (!clientId || !clientSecret || clientId === 'your_client_id_here') {
-        log('warn', 'Reddit API credentials not configured - using demo mode');
-        return null;
-    }
-
-    try {
-        const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-        const response = await axios.post(
-            'https://www.reddit.com/api/v1/access_token',
-            'grant_type=client_credentials',
-            {
-                headers: {
-                    'Authorization': `Basic ${auth}`,
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'User-Agent': process.env.REDDIT_USER_AGENT || 'ClaudeRedditAggregator/1.0.0'
-                },
-                timeout: 10000
+// Reddit request helper — tries multiple hostnames + retry/backoff
+async function redditGet(url, retries = 2) {
+    // Try each host variant
+    for (const host of REDDIT_HOSTS) {
+        const targetUrl = url.replace(/^https?:\/\/[^/]+/, `https://${host}`);
+        for (let attempt = 1; attempt <= retries; attempt++) {
+            try {
+                const resp = await axios.get(targetUrl, {
+                    timeout: 15000,
+                    maxRedirects: 5,
+                    headers: {
+                        'User-Agent': getUA(),
+                        'Accept': 'application/json',
+                        'Accept-Language': 'en-US,en;q=0.9',
+                        'Cache-Control': 'no-cache',
+                    },
+                });
+                return resp.data;
+            } catch (err) {
+                // DNS failure = try next host immediately
+                if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED') break;
+                if (attempt === retries) break;
+                await new Promise(r => setTimeout(r, attempt * 1500));
             }
-        );
-
-        tokenCache.token = response.data.access_token;
-        tokenCache.expiresAt = Date.now() + (response.data.expires_in * 1000) - 60000; // Refresh 1 min early
-
-        log('info', 'Reddit OAuth token obtained');
-        return tokenCache.token;
-    } catch (error) {
-        log('error', 'Failed to get Reddit OAuth token', { error: error.message });
-        return null;
+        }
     }
+    throw new Error(`All Reddit hosts failed for: ${url.substring(0, 80)}`);
 }
 
 // All topic keywords for filtering generic subreddits
@@ -326,91 +323,158 @@ function getCuratedResources() {
     ];
 }
 
-// Fetch posts from a subreddit with retry logic
-async function fetchSubredditPosts(subreddit, token, retries = 3) {
-    const startTime = Date.now();
-    const keywords = TOPIC_KEYWORDS;
+// Convert a Reddit post object to our standard format
+function normalizeRedditPost(post) {
+    return {
+        reddit_id: post.id || post.name,
+        title: post.title,
+        content: (post.selftext || '').substring(0, 1000),
+        author: post.author || 'unknown',
+        subreddit: post.subreddit || post.subreddit_name_prefixed?.replace('r/', '') || 'reddit',
+        upvotes: post.score || post.ups || 0,
+        num_comments: post.num_comments || 0,
+        created_at: new Date((post.created_utc || post.created || Date.now() / 1000) * 1000).toISOString(),
+        url: post.permalink ? `https://reddit.com${post.permalink}` : (post.url || ''),
+        source: 'reddit',
+    };
+}
 
-    for (let attempt = 1; attempt <= retries; attempt++) {
-        try {
-            const headers = {
-                'User-Agent': process.env.REDDIT_USER_AGENT || 'ClaudeRedditAggregator/1.0.0'
-            };
+// Strategy 1: Multireddit — fetch multiple subs in one request (no auth needed)
+async function fetchMultiSub(subs) {
+    const combined = subs.join('+');
+    const url = `https://old.reddit.com/r/${combined}/new.json?limit=100&raw_json=1`;
+    try {
+        const data = await redditGet(url);
+        const posts = (data?.data?.children || []).map(c => c.data);
+        log('info', `Multireddit [${subs.slice(0,3).join(',')}...]: ${posts.length} posts`);
+        return posts;
+    } catch (e) {
+        log('warn', `Multireddit failed [${subs[0]}...]`, { error: e.message });
+        return [];
+    }
+}
 
-            let url;
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-                url = `https://oauth.reddit.com/r/${subreddit}/new?limit=100`;
-            } else {
-                // Public API — reddit.com (no www prefix to avoid DNS issues on some hosts)
-                url = `https://reddit.com/r/${subreddit}/new.json?limit=100`;
+// Strategy 2: Reddit global search by keyword (no auth, searches all of Reddit)
+async function fetchRedditSearch(query, timeFilter = 'week') {
+    const url = `https://old.reddit.com/search.json?q=${encodeURIComponent(query)}&sort=new&t=${timeFilter}&limit=25&raw_json=1`;
+    try {
+        const data = await redditGet(url);
+        const posts = (data?.data?.children || []).map(c => c.data);
+        log('info', `Reddit search "${query}": ${posts.length} posts`);
+        return posts;
+    } catch (e) {
+        log('warn', `Reddit search failed "${query}"`, { error: e.message });
+        return [];
+    }
+}
+
+// Strategy 3: PullPush.io (free Pushshift-compatible API, no auth needed)
+async function fetchPullPush(query) {
+    try {
+        const url = `https://api.pullpush.io/reddit/search/submission/?q=${encodeURIComponent(query)}&size=25&sort=desc&sort_type=created_utc`;
+        const resp = await axios.get(url, { timeout: 12000, headers: { 'User-Agent': getUA(), 'Accept': 'application/json' } });
+        const posts = (resp.data?.data || []);
+        if (!posts.length) return [];
+        log('info', `PullPush "${query}": ${posts.length} posts`);
+        return posts.map(p => ({
+            reddit_id: p.id,
+            title: p.title || '(no title)',
+            content: (p.selftext || '').substring(0, 1000),
+            author: p.author || 'unknown',
+            subreddit: p.subreddit || 'reddit',
+            upvotes: p.score || 0,
+            num_comments: p.num_comments || 0,
+            created_at: new Date((p.created_utc || Date.now() / 1000) * 1000).toISOString(),
+            url: p.permalink ? `https://reddit.com${p.permalink}` : `https://reddit.com/r/${p.subreddit}/comments/${p.id}`,
+            source: 'reddit',
+        }));
+    } catch (e) {
+        log('warn', `PullPush failed "${query}"`, { error: e.message });
+        return [];
+    }
+}
+
+// Main Reddit fetch — no credentials needed, uses multiple strategies
+async function fetchAllRedditPosts() {
+    const results = [];
+    const seen = new Set();
+    const cutoff14d = Date.now() - 14 * 24 * 60 * 60 * 1000;
+
+    function addPosts(rawPosts, isDedicated = false) {
+        for (const post of rawPosts) {
+            if (!post.id && !post.name) continue;
+            const id = post.id || post.name;
+            if (seen.has(id)) continue;
+
+            const postTime = (post.created_utc || post.created || 0) * 1000;
+            if (postTime < cutoff14d && !isDedicated) continue;
+
+            if (!isDedicated) {
+                const text = ((post.title || '') + ' ' + (post.selftext || '')).toLowerCase();
+                if (!TOPIC_KEYWORDS.some(kw => text.includes(kw.toLowerCase()))) continue;
             }
 
-            const response = await axios.get(url, {
-                headers,
-                timeout: 15000
-            });
-
-            const data = token ? response.data : response.data;
-            const posts = data.data.children.map(child => child.data);
-
-            // Filter posts from last 30 days containing Claude-related keywords
-            const fourteenDaysAgo = Date.now() - (14 * 24 * 60 * 60 * 1000);
-            const filteredPosts = posts.filter(post => {
-                const postTime = post.created_utc * 1000;
-                if (postTime < fourteenDaysAgo) return false;
-
-                const titleLower = post.title.toLowerCase();
-                const bodyLower = (post.selftext || '').toLowerCase();
-                const hasKeyword = keywords.some(kw =>
-                    titleLower.includes(kw.toLowerCase()) ||
-                    bodyLower.includes(kw.toLowerCase())
-                );
-
-                // For dedicated subreddits, include all posts
-                if (DEDICATED_SUBS.has(subreddit.toLowerCase())) {
-                    return true;
-                }
-
-                return hasKeyword;
-            });
-
-            const duration = Date.now() - startTime;
-            log('info', `Fetched posts from r/${subreddit}`, {
-                total: posts.length,
-                filtered: filteredPosts.length,
-                duration: `${duration}ms`
-            });
-
-            return filteredPosts.map(post => ({
-                reddit_id: post.id,
-                title: post.title,
-                content: post.selftext ? post.selftext.substring(0, 1000) : '',
-                author: post.author,
-                subreddit: post.subreddit,
-                upvotes: post.score,
-                num_comments: post.num_comments,
-                created_at: new Date(post.created_utc * 1000).toISOString(),
-                url: `https://reddit.com${post.permalink}`,
-                source: 'reddit',
-            }));
-
-        } catch (error) {
-            const delay = Math.pow(3, attempt) * 1000; // Exponential backoff: 3s, 9s, 27s
-            log('warn', `Attempt ${attempt}/${retries} failed for r/${subreddit}`, {
-                error: error.message,
-                retryIn: `${delay / 1000}s`
-            });
-
-            if (attempt < retries) {
-                await new Promise(resolve => setTimeout(resolve, delay));
-            } else {
-                log('error', `All retries failed for r/${subreddit}`, { error: error.message });
-                return [];
-            }
+            seen.add(id);
+            results.push(normalizeRedditPost(post));
         }
     }
-    return [];
+
+    // ── Strategy A: Dedicated subs via multireddit batches (5 subs per request) ──
+    const dedicatedSubs = ['ClaudeAI', 'claude', 'claudedev', 'AnthropicAI', 'ClaudeCode', 'aicoding', 'AIAgents', 'claudeai'];
+    const dedBatches = [];
+    for (let i = 0; i < dedicatedSubs.length; i += 5) dedBatches.push(dedicatedSubs.slice(i, i + 5));
+
+    for (const batch of dedBatches) {
+        const posts = await fetchMultiSub(batch);
+        addPosts(posts, true); // dedicated = include all
+        await new Promise(r => setTimeout(r, 1200));
+    }
+
+    // ── Strategy B: Broad topic subs via multireddit batches (10 subs per request) ──
+    const topicSubs = [
+        'vibecoding', 'cursor_ai', 'AIdev', 'GithubCopilot', 'ChatGPTCoding',
+        'PromptEngineering', 'LangChain', 'AutoGPT', 'AIAgents', 'n8n',
+        'OpenAI', 'MachineLearning', 'LocalLLaMA', 'ChatGPT', 'GPT4',
+        'ArtificialIntelligence', 'programming', 'SoftwareEngineering', 'webdev', 'technology',
+    ];
+    const topicBatches = [];
+    for (let i = 0; i < topicSubs.length; i += 10) topicBatches.push(topicSubs.slice(i, i + 10));
+
+    for (const batch of topicBatches) {
+        const posts = await fetchMultiSub(batch);
+        addPosts(posts, false); // filter by keywords
+        await new Promise(r => setTimeout(r, 1500));
+    }
+
+    // ── Strategy C: Reddit global keyword search (crosses all subreddits) ──
+    const searchQueries = [
+        'claude anthropic site:reddit.com',
+        'claude code anthropic',
+        'openclaw ai assistant',
+        'anthropic claude model',
+        'MCP model context protocol claude',
+    ];
+
+    for (const q of searchQueries) {
+        const posts = await fetchRedditSearch(q, 'week');
+        addPosts(posts, false);
+        await new Promise(r => setTimeout(r, 1000));
+    }
+
+    // ── Strategy D: PullPush.io for additional historical coverage ──
+    const pullpushQueries = ['claude anthropic', 'openclaw', 'claude code', 'anthropic AI'];
+    for (const q of pullpushQueries) {
+        const posts = await fetchPullPush(q);
+        for (const p of posts) {
+            if (seen.has(p.reddit_id)) continue;
+            seen.add(p.reddit_id);
+            results.push(p);
+        }
+        await new Promise(r => setTimeout(r, 800));
+    }
+
+    log('info', `Reddit total: ${results.length} unique posts from all strategies`);
+    return results;
 }
 
 // Track whether a fetch is already running (prevent concurrent fetches)
@@ -425,45 +489,19 @@ async function fetchAllPosts() {
     fetchInProgress = true;
     try {
 
-    const subreddits = [
-        // Claude / Anthropic — dedicated (all posts included, no keyword filter)
-        'ClaudeAI', 'claude', 'claudedev', 'AnthropicAI', 'ClaudeCode',
-        // AI coding & tools
-        'AICoding', 'vibecoding', 'cursor_ai', 'AIdev', 'GithubCopilot',
-        'ChatGPTCoding', 'aipromptprogramming',
-        // AI agents / automation
-        'AIAgents', 'PromptEngineering', 'LangChain', 'AutoGPT', 'n8n',
-        'ChatGPTAutomation',
-        // AI models / general
-        'OpenAI', 'MachineLearning', 'LocalLLaMA', 'artificial', 'singularity',
-        'ChatGPT', 'Bard', 'perplexity_ai', 'GPT4', 'Gemini',
-        'ArtificialIntelligence',
-        // Learning
-        'learnmachinelearning', 'deeplearning', 'learnprogramming',
-        // Tech / Dev
-        'programming', 'webdev', 'compsci', 'technology', 'SoftwareEngineering',
-        // Discord / bots
-        'discordapp', 'Discord_Bots',
-    ];
-    const token = await getRedditToken();
+    log('info', 'Starting multi-source fetch (no-auth Reddit strategies)');
 
-    log('info', 'Starting multi-source fetch', { subreddits: subreddits.length });
-
-    // Staggered Reddit fetches (800ms apart) run in parallel with other sources
-    const redditPromises = subreddits.map((sub, i) =>
-        new Promise(resolve => setTimeout(async () => resolve(await fetchSubredditPosts(sub, token)), i * 800))
-    );
-
-    const [hn, gh, devto, blog, curated, ...redditResults] = await Promise.all([
+    // Run non-Reddit sources in parallel while Reddit fetches sequentially (rate limit friendly)
+    const [hn, gh, devto, blog, curated, reddit] = await Promise.all([
         fetchHackerNews(),
         fetchGitHub(),
         fetchDevTo(),
         fetchAnthropicBlog(),
         Promise.resolve(getCuratedResources()),
-        ...redditPromises,
+        fetchAllRedditPosts(),
     ]);
 
-    const allPosts = [...curated, ...blog, ...hn, ...gh, ...devto, ...redditResults.flat()];
+    const allPosts = [...curated, ...blog, ...hn, ...gh, ...devto, ...reddit];
 
     // Deduplicate by reddit_id
     const seen = new Set();
@@ -472,7 +510,7 @@ async function fetchAllPosts() {
     if (uniquePosts.length > 0) {
         db.upsertPosts(uniquePosts);
         log('info', `Saved ${uniquePosts.length} unique posts`, {
-            reddit: redditResults.flat().length, hn: hn.length,
+            reddit: reddit.length, hn: hn.length,
             github: gh.length, devto: devto.length,
             anthropic: blog.length, curated: curated.length,
         });

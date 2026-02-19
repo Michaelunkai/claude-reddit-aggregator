@@ -11,9 +11,9 @@ module.exports = (env, argv) => {
         entry: path.resolve(projectRoot, 'src', 'index.jsx'),
         output: {
             path: path.resolve(projectRoot, 'public'),
-            filename: 'bundle.js',
+            filename: 'bundle.[contenthash:8].js',  // Cache busting with hash
             publicPath: '/',
-            clean: false
+            clean: true  // Clean old bundles
         },
         resolve: {
             extensions: ['.js', '.jsx', '.json'],

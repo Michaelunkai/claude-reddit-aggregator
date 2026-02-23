@@ -490,6 +490,125 @@ function KeyboardShortcuts({ isOpen, onClose }) {
     );
 }
 
+// OpenClaw News Banner - Always visible, shows last 24h OpenClaw news
+function OpenClawNewsBanner({ posts, onSelectPost, favorites, onToggleFavorite }) {
+    const [expanded, setExpanded] = useState(true);
+    const [scrollIndex, setScrollIndex] = useState(0);
+
+    if (!posts || posts.length === 0) {
+        return (
+            <div className="mb-6 glass-card rounded-2xl overflow-hidden border border-emerald-500/20">
+                <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 px-5 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <span className="text-2xl">🦅</span>
+                        <div>
+                            <h2 className="text-white font-bold text-lg">OpenClaw News Feed</h2>
+                            <p className="text-emerald-100/70 text-xs">Last 24 hours — auto-refreshes every 5 minutes</p>
+                        </div>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/15 text-emerald-100 border border-white/20">
+                        No news yet — checking sources...
+                    </span>
+                </div>
+            </div>
+        );
+    }
+
+    const visiblePosts = expanded ? posts.slice(0, 6) : posts.slice(0, 2);
+
+    return (
+        <div className="mb-6 glass-card rounded-2xl overflow-hidden border border-emerald-500/30 shadow-lg shadow-emerald-500/10">
+            {/* Header bar */}
+            <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 px-5 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <span className="text-2xl animate-pulse">🦅</span>
+                    <div>
+                        <h2 className="text-white font-bold text-lg">OpenClaw News Feed</h2>
+                        <p className="text-emerald-100/70 text-xs">Last 24 hours — {posts.length} item{posts.length !== 1 ? 's' : ''} found</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/15 text-emerald-100 border border-white/20">
+                        <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                        LIVE
+                    </span>
+                    <button
+                        onClick={() => setExpanded(prev => !prev)}
+                        className="px-3 py-1 rounded-full text-xs font-semibold bg-white/10 text-white hover:bg-white/20 transition-all border border-white/10"
+                    >
+                        {expanded ? 'Collapse' : `Show all (${posts.length})`}
+                    </button>
+                </div>
+            </div>
+
+            {/* News items */}
+            <div className="p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {visiblePosts.map((post, idx) => {
+                        const isNew = (Date.now() - new Date(post.created_at).getTime()) < 2 * 60 * 60 * 1000;
+                        const timeDiff = Date.now() - new Date(post.created_at).getTime();
+                        const hours = Math.floor(timeDiff / 3600000);
+                        const mins = Math.floor(timeDiff / 60000);
+                        const timeStr = mins < 60 ? `${mins}m ago` : `${hours}h ago`;
+                        const isFav = favorites.includes(post.reddit_id);
+                        const srcMeta = SOURCE_META[post.source] || SOURCE_META.reddit;
+
+                        return (
+                            <div
+                                key={post.reddit_id || idx}
+                                onClick={() => onSelectPost(post)}
+                                className="group relative bg-white/5 hover:bg-white/10 border border-white/8 hover:border-emerald-500/30 rounded-xl p-3.5 cursor-pointer transition-all duration-200 hover:shadow-md hover:shadow-emerald-500/5"
+                            >
+                                <div className="flex items-start justify-between gap-2 mb-2">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/20">
+                                            {srcMeta.icon} {srcMeta.name}
+                                        </span>
+                                        {isNew && (
+                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-green-500/20 text-green-400 border border-green-500/30 animate-pulse">
+                                                NEW
+                                            </span>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onToggleFavorite(post.reddit_id); }}
+                                        className={`shrink-0 p-1 rounded-full transition-all ${isFav ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}`}
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill={isFav ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <h3 className="text-sm font-semibold text-white group-hover:text-emerald-300 transition-colors line-clamp-2 leading-snug mb-2">
+                                    {post.title}
+                                </h3>
+                                <div className="flex items-center justify-between text-[11px] text-gray-400">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-orange-400 font-medium">▲ {post.upvotes || 0}</span>
+                                        <span className="text-blue-400">💬 {post.num_comments || 0}</span>
+                                    </div>
+                                    <span className="text-emerald-400 font-medium">{timeStr}</span>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {posts.length > 6 && expanded && (
+                    <div className="mt-3 text-center">
+                        <button
+                            onClick={() => setExpanded(false)}
+                            className="text-xs text-gray-500 hover:text-emerald-400 transition-colors"
+                        >
+                            Showing {visiblePosts.length} of {posts.length} — click collapse to minimize
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 // Main App component
 export default function App() {
     const [posts, setPosts] = useState([]);
@@ -527,6 +646,7 @@ export default function App() {
     const [showShortcuts, setShowShortcuts] = useState(false);
     const [view, setView] = useState('grid'); // 'grid' or 'trending'
     const [activeSource, setActiveSource] = useState('all');
+    const [openClawPosts, setOpenClawPosts] = useState([]);
 
     const searchInputRef = useRef(null);
     const postsContainerRef = useRef(null);
@@ -553,6 +673,20 @@ export default function App() {
         ? 'http://localhost:3000'
         : '';
 
+    // Fetch OpenClaw dedicated feed
+    const fetchOpenClawFeed = useCallback(async () => {
+        try {
+            const response = await fetch(`${API_URL}/api/openclaw-feed`);
+            if (!response.ok) return;
+            const data = await response.json();
+            if (data.success && data.posts) {
+                setOpenClawPosts(data.posts);
+            }
+        } catch (err) {
+            console.error('OpenClaw feed error:', err);
+        }
+    }, [API_URL]);
+
     // Socket.IO connection
     useEffect(() => {
         const socket = io(API_URL, {
@@ -576,6 +710,7 @@ export default function App() {
             setLastUpdated(new Date().toISOString());
             setNextRefresh(Date.now() + 300000);
             fetchPosts(true); // silent — no spinner, keeps showing old posts
+            fetchOpenClawFeed(); // also refresh OpenClaw feed
         });
 
         socket.on('stats', (data) => {
@@ -586,6 +721,13 @@ export default function App() {
             socket.disconnect();
         };
     }, []);
+
+    // Initial OpenClaw feed load + periodic refresh
+    useEffect(() => {
+        fetchOpenClawFeed();
+        const interval = setInterval(fetchOpenClawFeed, 60000); // refresh every 60s
+        return () => clearInterval(interval);
+    }, [fetchOpenClawFeed]);
 
     // Fetch posts
     const fetchPosts = useCallback(async (silent = false) => {
@@ -875,6 +1017,14 @@ export default function App() {
 
             {/* Main Content */}
             <main className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* OpenClaw News Feed — Always visible at the top */}
+                <OpenClawNewsBanner
+                    posts={openClawPosts}
+                    onSelectPost={setSelectedPost}
+                    favorites={favorites}
+                    onToggleFavorite={toggleFavorite}
+                />
+
                 {/* Stats Cards */}
                 {stats && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

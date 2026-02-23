@@ -329,6 +329,182 @@ async function fetchAnthropicBlog() {
     }
 }
 
+// ── OpenClaw ecosystem keywords for dedicated feed ──────────────────────────
+const OPENCLAW_KEYWORDS = [
+    'openclaw', 'open claw', 'open-claw',
+    'clawhub', 'claw hub', 'claw-hub',
+    'moltbot', 'molt bot', 'molt-bot',
+    'moltbook', 'molt book', 'molt-book',
+    'clawdbot', 'clawd bot', 'clawd-bot',
+    'clawde', 'claw-de',
+];
+
+// Check if text matches OpenClaw ecosystem
+function isOpenClawRelated(text) {
+    if (!text) return false;
+    const lower = text.toLowerCase();
+    return OPENCLAW_KEYWORDS.some(kw => lower.includes(kw));
+}
+
+// ── Dedicated OpenClaw News Fetcher ─────────────────────────────────────────
+// Aggressively searches ALL sources specifically for OpenClaw ecosystem news
+async function fetchOpenClawNews() {
+    const results = [];
+    const seen = new Set();
+    const cutoff24h = Date.now() - 24 * 60 * 60 * 1000;
+
+    // Helper: add only OpenClaw-related posts from last 24h
+    function addIfOpenClaw(post, source) {
+        if (!post) return;
+        const id = post.reddit_id || post.id || `${source}_${Date.now()}_${Math.random()}`;
+        if (seen.has(id)) return;
+        const text = ((post.title || '') + ' ' + (post.content || '')).toLowerCase();
+        if (!OPENCLAW_KEYWORDS.some(kw => text.includes(kw))) return;
+        const postTime = new Date(post.created_at).getTime();
+        if (postTime < cutoff24h) return;
+        seen.add(id);
+        results.push({ ...post, openclaw_relevant: true });
+    }
+
+    // ── Reddit searches for OpenClaw ecosystem ──
+    const redditQueries = [
+        '"openclaw"', '"clawhub"', '"moltbot"', '"clawdbot"',
+        'openclaw OR clawhub OR moltbot',
+        'openclaw claude', 'clawhub anthropic',
+    ];
+    for (const q of redditQueries) {
+        try {
+            const posts = await fetchRedditSearch(q, 'week');
+            for (const raw of (posts || [])) {
+                const postTime = (raw.created_utc || raw.created || 0) * 1000;
+                if (postTime < cutoff24h) continue;
+                const normalized = normalizeRedditPost(raw);
+                addIfOpenClaw(normalized, 'reddit');
+            }
+        } catch (e) { /* skip */ }
+        await new Promise(r => setTimeout(r, 800));
+    }
+
+    // ── PullPush for OpenClaw ──
+    for (const q of ['openclaw', 'clawhub', 'moltbot', 'clawdbot']) {
+        try {
+            const posts = await fetchPullPush(q);
+            for (const p of (posts || [])) {
+                addIfOpenClaw(p, 'pullpush');
+            }
+        } catch (e) { /* skip */ }
+        await new Promise(r => setTimeout(r, 500));
+    }
+
+    // ── Hacker News for OpenClaw ──
+    const hnQueries = ['openclaw', 'clawhub', 'moltbot', 'clawdbot'];
+    const hnCutoffSec = Math.floor(cutoff24h / 1000);
+    for (const q of hnQueries) {
+        try {
+            const resp = await axios.get(
+                `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(q)}&tags=story&hitsPerPage=20&numericFilters=created_at_i>${hnCutoffSec}`,
+                { timeout: 10000 }
+            );
+            for (const hit of (resp.data.hits || [])) {
+                addIfOpenClaw({
+                    reddit_id: `hn_${hit.objectID}`,
+                    title: hit.title || '(no title)',
+                    content: (hit.story_text || '').replace(/<[^>]+>/g, '').substring(0, 600),
+                    author: hit.author || 'unknown',
+                    subreddit: 'HackerNews',
+                    upvotes: hit.points || 0,
+                    num_comments: hit.num_comments || 0,
+                    created_at: new Date(hit.created_at).toISOString(),
+                    url: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,
+                    source: 'hackernews',
+                }, 'hackernews');
+            }
+        } catch (e) { /* skip */ }
+        await new Promise(r => setTimeout(r, 300));
+    }
+
+    // ── GitHub for OpenClaw repos ──
+    const ghCutoff = new Date(cutoff24h).toISOString().split('T')[0];
+    const ghQueries = [
+        `openclaw pushed:>${ghCutoff}`,
+        `clawhub pushed:>${ghCutoff}`,
+        `moltbot pushed:>${ghCutoff}`,
+        `clawdbot pushed:>${ghCutoff}`,
+    ];
+    const ghHeaders = {
+        'User-Agent': 'ClaudeAggregator/2.0',
+        'Accept': 'application/vnd.github.v3+json',
+    };
+    if (process.env.GITHUB_TOKEN) ghHeaders['Authorization'] = `token ${process.env.GITHUB_TOKEN}`;
+    for (const q of ghQueries) {
+        try {
+            const resp = await axios.get(
+                `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=updated&order=desc&per_page=10`,
+                { headers: ghHeaders, timeout: 10000 }
+            );
+            for (const repo of (resp.data.items || [])) {
+                const updatedAt = new Date(repo.pushed_at || repo.updated_at);
+                if (updatedAt.getTime() < cutoff24h) continue;
+                addIfOpenClaw({
+                    reddit_id: `gh_${repo.id}`,
+                    title: `${repo.full_name} — ${(repo.description || 'No description').substring(0, 100)}`,
+                    content: (repo.description || '') + (repo.topics?.length ? '\nTopics: ' + repo.topics.join(', ') : '') + `\nStars: ${repo.stargazers_count} | Language: ${repo.language || 'N/A'}`,
+                    author: repo.owner.login,
+                    subreddit: 'GitHub',
+                    upvotes: repo.stargazers_count,
+                    num_comments: repo.open_issues_count,
+                    created_at: repo.pushed_at || repo.updated_at,
+                    url: repo.html_url,
+                    source: 'github',
+                }, 'github');
+            }
+        } catch (e) { /* skip */ }
+        await new Promise(r => setTimeout(r, 500));
+    }
+
+    // ── Dev.to for OpenClaw ──
+    for (const tag of ['openclaw', 'clawhub', 'moltbot']) {
+        try {
+            const resp = await axios.get(
+                `https://dev.to/api/articles?tag=${tag}&per_page=10&top=1`,
+                { timeout: 10000, headers: { 'User-Agent': 'ClaudeAggregator/2.0' } }
+            );
+            for (const art of (resp.data || [])) {
+                const pubDate = new Date(art.published_at || 0);
+                if (pubDate.getTime() < cutoff24h) continue;
+                addIfOpenClaw({
+                    reddit_id: `devto_${art.id}`,
+                    title: art.title,
+                    content: art.description || '',
+                    author: art.user?.username || 'unknown',
+                    subreddit: 'DevTo',
+                    upvotes: (art.positive_reactions_count || 0) + (art.public_reactions_count || 0),
+                    num_comments: art.comments_count || 0,
+                    created_at: art.published_at,
+                    url: art.url,
+                    source: 'devto',
+                }, 'devto');
+            }
+        } catch (e) { /* skip */ }
+        await new Promise(r => setTimeout(r, 300));
+    }
+
+    // Sort by newest first, then by engagement (upvotes + comments)
+    results.sort((a, b) => {
+        const timeA = new Date(a.created_at).getTime();
+        const timeB = new Date(b.created_at).getTime();
+        // Primarily sort by time (newest first)
+        if (Math.abs(timeA - timeB) > 3600000) return timeB - timeA;
+        // Within same hour, sort by engagement
+        const engA = (a.upvotes || 0) + (a.num_comments || 0);
+        const engB = (b.upvotes || 0) + (b.num_comments || 0);
+        return engB - engA;
+    });
+
+    log('info', `OpenClaw dedicated feed: ${results.length} posts in last 24h`);
+    return results;
+}
+
 // ── Curated resources removed — only real-time posts from actual sources ──
 function getCuratedResources() {
     // No static curated content — everything must be recent and real
@@ -504,6 +680,9 @@ async function fetchAllRedditPosts() {
 // Track whether a fetch is already running (prevent concurrent fetches)
 let fetchInProgress = false;
 
+// Cache for OpenClaw-specific feed (refreshed every cycle)
+let openClawCache = [];
+
 // Fetch posts from all sources (Reddit + HN + GitHub + Dev.to + Anthropic Blog + curated)
 async function fetchAllPosts() {
     if (fetchInProgress) {
@@ -518,18 +697,24 @@ async function fetchAllPosts() {
     lastFetchStatus.lastAttempt = new Date().toISOString();
 
     // Run all sources in parallel — each wrapped so one failure doesn't kill others
-    const [hn, gh, devto, blog, curated, reddit] = await Promise.all([
+    const [hn, gh, devto, blog, curated, reddit, openclawFeed] = await Promise.all([
         fetchHackerNews().catch(e => { log('error', 'HN fetch failed', { error: e.message }); return []; }),
         fetchGitHub().catch(e => { log('error', 'GitHub fetch failed', { error: e.message }); return []; }),
         fetchDevTo().catch(e => { log('error', 'DevTo fetch failed', { error: e.message }); return []; }),
         fetchAnthropicBlog().catch(e => { log('error', 'Anthropic fetch failed', { error: e.message }); return []; }),
         Promise.resolve(getCuratedResources()),
         fetchAllRedditPosts().catch(e => { log('error', 'Reddit fetch failed', { error: e.message }); return []; }),
+        fetchOpenClawNews().catch(e => { log('error', 'OpenClaw feed failed', { error: e.message }); return []; }),
     ]);
 
-    lastFetchStatus.sourceCounts = { reddit: reddit.length, hn: hn.length, gh: gh.length, devto: devto.length, anthropic: blog.length };
+    // Update OpenClaw cache for the dedicated feed endpoint
+    if (openclawFeed.length > 0) {
+        openClawCache = openclawFeed;
+    }
+
+    lastFetchStatus.sourceCounts = { reddit: reddit.length, hn: hn.length, gh: gh.length, devto: devto.length, anthropic: blog.length, openclaw: openclawFeed.length };
     
-    const allPosts = [...curated, ...blog, ...hn, ...gh, ...devto, ...reddit];
+    const allPosts = [...curated, ...blog, ...hn, ...gh, ...devto, ...reddit, ...openclawFeed];
 
     // Deduplicate by reddit_id
     const seen = new Set();
@@ -541,6 +726,7 @@ async function fetchAllPosts() {
             reddit: reddit.length, hn: hn.length,
             github: gh.length, devto: devto.length,
             anthropic: blog.length, curated: curated.length,
+            openclaw: openclawFeed.length,
         });
     }
 
@@ -663,6 +849,55 @@ app.post('/api/refresh', async (req, res) => {
     } catch (error) {
         log('error', 'Error during manual refresh', { error: error.message });
         res.status(500).json({ success: false, error: 'Failed to refresh posts' });
+    }
+});
+
+// ── OpenClaw dedicated feed endpoint ──────────────────────────────────────────
+// Returns OpenClaw-related news from ALL sources (last 24 hours)
+// Also scans existing DB for OpenClaw-relevant posts
+app.get('/api/openclaw-feed', async (req, res) => {
+    try {
+        const cutoff24h = Date.now() - 24 * 60 * 60 * 1000;
+
+        // First: scan existing DB for OpenClaw-related posts from last 24h
+        const allPosts = db.getPosts({ page: 1, limit: 500, daysBack: 1 }).posts || [];
+        const dbOpenClaw = allPosts.filter(p => {
+            const text = ((p.title || '') + ' ' + (p.content || '')).toLowerCase();
+            return OPENCLAW_KEYWORDS.some(kw => text.includes(kw));
+        });
+
+        // Deduplicate
+        const seen = new Set(dbOpenClaw.map(p => p.reddit_id));
+        const combined = [...dbOpenClaw];
+
+        // Also check openClawCache (populated by background fetcher)
+        for (const p of openClawCache) {
+            if (!seen.has(p.reddit_id)) {
+                seen.add(p.reddit_id);
+                combined.push(p);
+            }
+        }
+
+        // Sort: newest first, then by engagement
+        combined.sort((a, b) => {
+            const timeA = new Date(a.created_at).getTime();
+            const timeB = new Date(b.created_at).getTime();
+            if (Math.abs(timeA - timeB) > 3600000) return timeB - timeA;
+            const engA = (a.upvotes || 0) + (a.num_comments || 0);
+            const engB = (b.upvotes || 0) + (b.num_comments || 0);
+            return engB - engA;
+        });
+
+        res.json({
+            success: true,
+            posts: combined,
+            count: combined.length,
+            lastUpdated: new Date().toISOString(),
+            window: '24h',
+        });
+    } catch (error) {
+        log('error', 'OpenClaw feed error', { error: error.message });
+        res.status(500).json({ success: false, error: 'Failed to fetch OpenClaw feed' });
     }
 });
 

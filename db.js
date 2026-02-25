@@ -95,7 +95,7 @@ class PostsDatabase {
             page = 1,
             limit = 20,
             minUpvotes = 0,
-            daysBack = 7  // STRICT 7-day default
+            daysBack = 2  // STRICT 48-hour default
         } = options;
 
         let filtered = [...this.posts];
@@ -179,7 +179,7 @@ class PostsDatabase {
     }
 
     // Delete old posts
-    deleteOldPosts(daysBack = 30) {
+    deleteOldPosts(daysBack = 3) {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - daysBack);
 

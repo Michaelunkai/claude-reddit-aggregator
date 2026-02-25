@@ -87,7 +87,7 @@ function TrendingBadge({ rank }) {
 
 // Post card component
 function PostCard({ post, isFavorite, onToggleFavorite, isSelected, onSelect, showTrending, rank }) {
-    const isNew = (Date.now() - new Date(post.created_at).getTime()) < 2 * 60 * 60 * 1000;
+    const isNew = (Date.now() - new Date(post.created_at).getTime()) < 4 * 60 * 60 * 1000;
     const isReddit = !post.source || post.source === 'reddit';
 
     const formatDate = (dateString, source) => {
@@ -503,7 +503,7 @@ function OpenClawNewsBanner({ posts, onSelectPost, favorites, onToggleFavorite }
                         <span className="text-2xl">🦅</span>
                         <div>
                             <h2 className="text-white font-bold text-lg">OpenClaw News Feed</h2>
-                            <p className="text-emerald-100/70 text-xs">Last 24 hours — auto-refreshes every 5 minutes</p>
+                            <p className="text-emerald-100/70 text-xs">Last 48 hours — auto-refreshes every 3 minutes</p>
                         </div>
                     </div>
                     <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/15 text-emerald-100 border border-white/20">
@@ -524,7 +524,7 @@ function OpenClawNewsBanner({ posts, onSelectPost, favorites, onToggleFavorite }
                     <span className="text-2xl animate-pulse">🦅</span>
                     <div>
                         <h2 className="text-white font-bold text-lg">OpenClaw News Feed</h2>
-                        <p className="text-emerald-100/70 text-xs">Last 24 hours — {posts.length} item{posts.length !== 1 ? 's' : ''} found</p>
+                        <p className="text-emerald-100/70 text-xs">Last 48 hours — {posts.length} items found</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -545,7 +545,7 @@ function OpenClawNewsBanner({ posts, onSelectPost, favorites, onToggleFavorite }
             <div className="p-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {visiblePosts.map((post, idx) => {
-                        const isNew = (Date.now() - new Date(post.created_at).getTime()) < 2 * 60 * 60 * 1000;
+                        const isNew = (Date.now() - new Date(post.created_at).getTime()) < 4 * 60 * 60 * 1000;
                         const timeDiff = Date.now() - new Date(post.created_at).getTime();
                         const hours = Math.floor(timeDiff / 3600000);
                         const mins = Math.floor(timeDiff / 60000);
@@ -615,7 +615,7 @@ export default function App() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [sortBy, setSortBy] = useState('upvotes');
+    const [sortBy, setSortBy] = useState('created_at');
     const [sortOrder, setSortOrder] = useState('desc');
     const [page, setPage] = useState(1);
     const [pagination, setPagination] = useState({ total: 0, totalPages: 0 });
@@ -642,7 +642,7 @@ export default function App() {
     const [selectedPost, setSelectedPost] = useState(null);
     const [selectedIndex, setSelectedIndex] = useState(-1);
     const [selectedSubreddit, setSelectedSubreddit] = useState('');
-    const [nextRefresh, setNextRefresh] = useState(Date.now() + 300000);
+    const [nextRefresh, setNextRefresh] = useState(Date.now() + 180000);
     const [showShortcuts, setShowShortcuts] = useState(false);
     const [view, setView] = useState('grid'); // 'grid' or 'trending'
     const [activeSource, setActiveSource] = useState('all');
@@ -653,7 +653,7 @@ export default function App() {
 
     // Countdown to next refresh
     const { minutes, seconds } = useCountdown(nextRefresh, () => {
-        setNextRefresh(Date.now() + 300000);
+        setNextRefresh(Date.now() + 180000);
     });
 
     // Apply dark mode class to document
@@ -708,7 +708,7 @@ export default function App() {
 
         socket.on('posts-updated', (data) => {
             setLastUpdated(new Date().toISOString());
-            setNextRefresh(Date.now() + 300000);
+            setNextRefresh(Date.now() + 180000);
             fetchPosts(true); // silent — no spinner, keeps showing old posts
             fetchOpenClawFeed(); // also refresh OpenClaw feed
         });
@@ -725,7 +725,7 @@ export default function App() {
     // Initial OpenClaw feed load + periodic refresh
     useEffect(() => {
         fetchOpenClawFeed();
-        const interval = setInterval(fetchOpenClawFeed, 60000); // refresh every 60s
+        const interval = setInterval(fetchOpenClawFeed, 90000); // every 90s
         return () => clearInterval(interval);
     }, [fetchOpenClawFeed]);
 
@@ -840,7 +840,7 @@ export default function App() {
             const response = await fetch(`${API_URL}/api/refresh`, { method: 'POST' });
             if (response.ok) {
                 fetchPosts();
-                setNextRefresh(Date.now() + 300000);
+                setNextRefresh(Date.now() + 180000);
             }
         } catch (err) {
             console.error('Refresh error:', err);
@@ -1079,14 +1079,18 @@ export default function App() {
                     {/* Topic quick-search chips */}
                     <div className="flex flex-wrap gap-2 mb-5">
                         {[
-                            { label: '🤖 Claude',      q: 'claude' },
+                            { label: '🤖 Claude', q: 'claude' },
                             { label: '💻 Claude Code', q: 'claude code' },
-                            { label: '🦅 OpenClaw',    q: 'openclaw' },
-                            { label: '🤖 MoltBot',     q: 'moltbot' },
-                            { label: '📱 ClawdBot',    q: 'clawdbot' },
-                            { label: '🏗 Anthropic',  q: 'anthropic' },
-                            { label: '🔌 MCP',         q: 'mcp' },
-                            { label: '🧰 AI Agents',   q: 'ai agent' },
+                            { label: '🦅 OpenClaw', q: 'openclaw' },
+                            { label: '🏗 Anthropic', q: 'anthropic' },
+                            { label: '🔌 MCP', q: 'mcp' },
+                            { label: '🤖 MoltBot', q: 'moltbot' },
+                            { label: '📱 ClawdBot', q: 'clawdbot' },
+                            { label: '🧰 AI Agents', q: 'agent' },
+                            { label: '📢 Announcements', q: 'announcement release' },
+                            { label: '💡 Tips & Tricks', q: 'tip trick workflow tutorial' },
+                            { label: '⭐ New Repos', q: 'new repo' },
+                            { label: '🔧 API', q: 'api' },
                         ].map(chip => (
                             <button key={chip.q} onClick={() => { setSearchTerm(chip.q); setPage(1); setActiveSource('all'); }}
                                 className="px-3 py-1.5 rounded-full text-xs font-semibold bg-white/6 border border-white/8 text-gray-400 hover:text-white hover:bg-white/12 hover:border-purple-500/40 transition-all">
@@ -1150,9 +1154,9 @@ export default function App() {
                                 }}
                                 className="px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent cursor-pointer"
                             >
-                                <option value="created_at" className="bg-gray-800">Newest</option>
+                                <option value="created_at" className="bg-gray-800">Newest First</option>
                                 <option value="upvotes" className="bg-gray-800">Most Upvoted</option>
-                                <option value="num_comments" className="bg-gray-800">Most Comments</option>
+                                <option value="num_comments" className="bg-gray-800">Most Discussed</option>
                             </select>
 
                             <button
@@ -1320,9 +1324,9 @@ export default function App() {
                             </span>
                         </div>
                         <div className="flex items-center space-x-4 text-sm text-gray-500">
-                            <span>Auto-refresh every 5 minutes</span>
+                            <span>Auto-refresh every 3 minutes</span>
                             <span>|</span>
-                            <span>Posts from last 30 days</span>
+                            <span>Only last 48 hours — highest relevance</span>
                             <span>|</span>
                             <span>Press <kbd className="px-2 py-0.5 rounded bg-white/10 text-purple-400">?</kbd> for shortcuts</span>
                         </div>

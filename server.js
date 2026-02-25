@@ -10,7 +10,7 @@ const PostsDatabase = require('./db');
 
 // Configuration
 const PORT = process.env.PORT || 3000;
-const POLL_INTERVAL = parseInt(process.env.POLL_INTERVAL) || 300000; // 5 minutes default
+const POLL_INTERVAL = parseInt(process.env.POLL_INTERVAL) || 180000; // 3 minutes
 const LOG_PATH = process.env.LOG_PATH || path.join(__dirname, 'logs');
 
 // Ensure log directory exists
@@ -84,37 +84,56 @@ async function redditGet(url, retries = 2) {
     throw new Error(`All Reddit hosts failed for: ${url.substring(0, 80)}`);
 }
 
-// STRICT 7-day window for all sources
-const DAYS_WINDOW = 7;
+// STRICT 48-hour window — nothing older ever appears
+const DAYS_WINDOW = 2;
 const MS_WINDOW = DAYS_WINDOW * 24 * 60 * 60 * 1000;
 
 // STRICT topic keywords — must match at least one to be included
 // These are specific enough that a match = relevance
 const TOPIC_KEYWORDS = [
-    // Claude / Anthropic (primary targets)
+    // Core targets — Claude and Anthropic
     'claude', 'anthropic', 'claude code', 'claude-code', 'claudeai',
-    'sonnet 3.5', 'sonnet 4', 'opus 4', 'haiku 3', 'claude 3', 'claude 4',
-    // OpenClaw ecosystem
-    'openclaw', 'clawhub', 'moltbot', 'moltbook', 'clawdbot',
-    // AI coding tools (specific names only)
-    'cursor ai', 'windsurf ai', 'codeium', 'github copilot',
-    'aider', 'continue.dev', 'cody ai',
-    // MCP specifically
-    'mcp server', 'model context protocol', 'mcp protocol',
+    'claude 3', 'claude 4', 'claude sonnet', 'claude opus', 'claude haiku',
+    'anthropic api', 'claude api', 'claude agent', 'claude mcp',
+    'claude desktop', 'claude.ai', 'claude model',
+    // OpenClaw ecosystem — all variants
+    'openclaw', 'open claw', 'open-claw',
+    'clawhub', 'claw hub', 'claw-hub',
+    'moltbot', 'molt bot', 'molt-bot', 'moltbook',
+    'clawdbot', 'clawd bot', 'clawd-bot', 'clawde',
+    // MCP — Model Context Protocol
+    'mcp server', 'model context protocol', 'mcp protocol', 'mcp tool',
+    'mcp client', 'mcp anthropic', 'claude mcp',
+    // Claude Code specific tricks/workflows (high value for user)
+    'claude code tip', 'claude code trick', 'claude code workflow',
+    'claude code agent', 'claude code project', 'claude code tutorial',
+    'slash command claude', 'claude slash command',
 ];
 
 // Subreddits dedicated to Claude/Anthropic — still filter by recency but include all relevant posts
 const DEDICATED_SUBS = new Set([
     'claudeai', 'claude', 'claudedev', 'anthropicai', 'claudecode',
+    'openclaw', 'mcp', 'anthropic', 'clawdbot', 'moltbot',
 ]);
 
 // ── Hacker News ─────────────────────────────────────────────────────────────
 async function fetchHackerNews() {
     const queries = [
-        'claude anthropic', 'claude code', 'anthropic',
-        'openclaw', 'moltbot', 'clawdbot', 'clawhub',
-        'anthropic sonnet', 'anthropic opus',
-        'MCP model context protocol', 'ai coding assistant',
+        'claude anthropic',
+        'claude code',
+        'anthropic claude',
+        'anthropic model',
+        'openclaw',
+        'moltbot',
+        'clawdbot',
+        'clawhub',
+        'anthropic sonnet',
+        'anthropic opus',
+        'MCP model context protocol',
+        'claude api release',
+        'anthropic announcement',
+        'claude agent',
+        'claude computer use',
     ];
     const results = [];
     const seen = new Set();
@@ -156,9 +175,16 @@ async function fetchGitHub() {
     const repoQueries = [
         `openclaw pushed:>${cutoffDate}`,
         `claude-code pushed:>${cutoffDate}`,
-        `mcp-server pushed:>${cutoffDate}`,
+        `claude pushed:>${cutoffDate}`,
         `anthropic pushed:>${cutoffDate}`,
-        `ai-coding-assistant pushed:>${cutoffDate}`,
+        `moltbot pushed:>${cutoffDate}`,
+        `clawdbot pushed:>${cutoffDate}`,
+        `clawhub pushed:>${cutoffDate}`,
+        `mcp-server claude pushed:>${cutoffDate}`,
+        `anthropic-sdk pushed:>${cutoffDate}`,
+        `claude-api pushed:>${cutoffDate}`,
+        `claude-mcp pushed:>${cutoffDate}`,
+        `model-context-protocol pushed:>${cutoffDate}`,
     ];
     const results = [];
     const seen = new Set();
@@ -171,7 +197,7 @@ async function fetchGitHub() {
     for (const q of repoQueries) {
         try {
             const resp = await axios.get(
-                `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=updated&order=desc&per_page=15`,
+                `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=updated&order=desc&per_page=25`,
                 { headers, timeout: 10000 }
             );
             for (const repo of (resp.data.items || [])) {
@@ -179,7 +205,15 @@ async function fetchGitHub() {
                 // Skip if not updated within window
                 const updatedAt = new Date(repo.pushed_at || repo.updated_at);
                 if (updatedAt < new Date(Date.now() - MS_WINDOW)) continue;
-                
+                // QUALITY FILTER: skip repos with no description AND 0 stars (pure junk)
+                if (!repo.description && repo.stargazers_count === 0) continue;
+                // QUALITY FILTER: skip forks unless they have significant stars
+                if (repo.fork && repo.stargazers_count < 5) continue;
+                // QUALITY FILTER: skip repos where the name/description doesn't match core topics
+                const repoText = ((repo.full_name || '') + ' ' + (repo.description || '') + ' ' + (repo.topics || []).join(' ')).toLowerCase();
+                const coreKeywords = ['claude', 'openclaw', 'anthropic', 'moltbot', 'clawdbot', 'clawhub', 'mcp'];
+                if (!coreKeywords.some(kw => repoText.includes(kw))) continue;
+
                 seen.add(`repo_${repo.id}`);
                 results.push({
                     reddit_id: `gh_${repo.id}`,
@@ -263,7 +297,7 @@ async function fetchAnthropicBlog() {
         // Extract article slugs (unique, skip bare /news)
         const slugMatches = [...new Set(
             [...html.matchAll(/href="(\/news\/[^"#?]+)"/g)].map(m => m[1])
-        )].filter(s => s.length > 8 && s !== '/news').slice(0, 25);
+        )].filter(s => s.length > 8 && s !== '/news').slice(0, 50);
 
         if (slugMatches.length === 0) {
             log('warn', 'Anthropic scraper: no slugs found');
@@ -274,7 +308,7 @@ async function fetchAnthropicBlog() {
         const MONTHS = { Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 };
         const fetchedDates = {};
         await Promise.all(
-            slugMatches.slice(0, 8).map(async (slug) => {
+            slugMatches.slice(0, 25).map(async (slug) => {
                 try {
                     const ar = await axios.get('https://www.anthropic.com' + slug, {
                         timeout: 8000,
@@ -304,8 +338,8 @@ async function fetchAnthropicBlog() {
             const dateMs = new Date(realDate).getTime();
             if (dateMs < cutoff) continue; // Skip if older than 7 days
             
-            const title = slug.replace('/news/', '').replace(/-/g, ' ')
-                .replace(/\b\w/g, c => c.toUpperCase());
+            const rawTitle = slug.replace('/news/', '').replace(/-/g, ' ').trim();
+            const title = rawTitle.replace(/\b\w/g, c => c.toUpperCase());
             
             posts.push({
                 reddit_id: 'anthropic_' + slug.replace('/news/', '').replace(/[^a-z0-9]/gi, '_'),
@@ -351,9 +385,9 @@ function isOpenClawRelated(text) {
 async function fetchOpenClawNews() {
     const results = [];
     const seen = new Set();
-    const cutoff24h = Date.now() - 24 * 60 * 60 * 1000;
+    const cutoff24h = Date.now() - 48 * 60 * 60 * 1000; // 48-hour window
 
-    // Helper: add only OpenClaw-related posts from last 24h
+    // Helper: add only OpenClaw-related posts from last 48h
     function addIfOpenClaw(post, source) {
         if (!post) return;
         const id = post.reddit_id || post.id || `${source}_${Date.now()}_${Math.random()}`;
@@ -368,9 +402,18 @@ async function fetchOpenClawNews() {
 
     // ── Reddit searches for OpenClaw ecosystem ──
     const redditQueries = [
-        '"openclaw"', '"clawhub"', '"moltbot"', '"clawdbot"',
-        'openclaw OR clawhub OR moltbot',
-        'openclaw claude', 'clawhub anthropic',
+        '"openclaw"',
+        '"clawhub"',
+        '"moltbot"',
+        '"clawdbot"',
+        'openclaw OR clawhub OR moltbot OR clawdbot',
+        'openclaw claude',
+        'clawhub anthropic',
+        'moltbot agent',
+        'clawdbot assistant',
+        'openclaw tutorial',
+        'openclaw tips',
+        'openclaw new',
     ];
     for (const q of redditQueries) {
         try {
@@ -430,6 +473,10 @@ async function fetchOpenClawNews() {
         `clawhub pushed:>${ghCutoff}`,
         `moltbot pushed:>${ghCutoff}`,
         `clawdbot pushed:>${ghCutoff}`,
+        `"openclaw" in:name,description pushed:>${ghCutoff}`,
+        `"clawhub" in:name,description pushed:>${ghCutoff}`,
+        `"moltbot" in:name,description pushed:>${ghCutoff}`,
+        `"clawdbot" in:name,description pushed:>${ghCutoff}`,
     ];
     const ghHeaders = {
         'User-Agent': 'ClaudeAggregator/2.0',
@@ -606,6 +653,15 @@ async function fetchAllRedditPosts() {
                 if (!isDedicated && !TOPIC_KEYWORDS.some(kw => text.includes(kw.toLowerCase()))) continue;
 
                 seen.add(id);
+
+                // Even for dedicated subs: drop posts with no title or very short content that
+                // appear to be test/spam posts
+                if (!post.title || post.title.trim().length < 5) continue;
+                // Drop posts where title is clearly off-topic even in dedicated sub
+                const postText = ((post.title || '') + ' ' + (post.selftext || '')).toLowerCase();
+                const absolutelyRequired = ['claude', 'anthropic', 'openclaw', 'clawhub', 'moltbot', 'clawdbot', 'mcp', 'ai', 'llm', 'model', 'agent', 'code', 'api'];
+                if (isDedicated && !absolutelyRequired.some(kw => postText.includes(kw))) continue;
+
                 results.push(normalizeRedditPost(post));
             } catch (e) { /* skip bad post */ }
         }
@@ -613,7 +669,10 @@ async function fetchAllRedditPosts() {
 
     // ── Strategy A: Claude/Anthropic dedicated subs ──
     try {
-        const dedicatedSubs = ['ClaudeAI', 'claude', 'claudedev', 'AnthropicAI', 'ClaudeCode'];
+        const dedicatedSubs = [
+            'ClaudeAI', 'claude', 'claudedev', 'AnthropicAI', 'ClaudeCode',
+            'openclaw', 'mcp', 'anthropic',
+        ];
         for (const sub of dedicatedSubs) {
             try {
                 const posts = await fetchMultiSub([sub]);
@@ -625,7 +684,10 @@ async function fetchAllRedditPosts() {
 
     // ── Strategy B: AI coding/tools subs with strict keyword filter ──
     try {
-        const topicSubs = ['vibecoding', 'cursor', 'mcp'];
+        const topicSubs = [
+            'vibecoding', 'mcp', 'AIAgents', 'aipromptprogramming',
+            'AIdev', 'AICoding', 'LocalLLaMA',
+        ];
         for (const sub of topicSubs) {
             try {
                 const posts = await fetchMultiSub([sub]);
@@ -638,11 +700,24 @@ async function fetchAllRedditPosts() {
     // ── Strategy C: Reddit global keyword search (last 7 days) ──
     try {
         const searchQueries = [
-            '"claude code"',      // exact phrase
+            '"claude code"',
             '"openclaw"',
             '"anthropic" claude',
             '"mcp server"',
-            'claude sonnet opus',
+            '"claude sonnet"',
+            '"claude opus"',
+            '"claude api"',
+            '"moltbot"',
+            '"clawdbot"',
+            '"clawhub"',
+            '"model context protocol"',
+            'anthropic announcement',
+            'claude new feature',
+            'claude trick tip workflow',
+            'claude code agent tutorial',
+            'openclaw new release',
+            'claude computer use',
+            'anthropic release',
         ];
 
         for (const q of searchQueries) {
@@ -803,7 +878,7 @@ app.get('/api/posts', async (req, res) => {
             page: parseInt(page),
             limit: Math.min(parseInt(limit), 100),
             minUpvotes: parseInt(minUpvotes),
-            daysBack: 7  // STRICT 7-day window
+            daysBack: 2  // STRICT 48-hour window — quality over quantity
         });
 
         res.json({
@@ -857,10 +932,10 @@ app.post('/api/refresh', async (req, res) => {
 // Also scans existing DB for OpenClaw-relevant posts
 app.get('/api/openclaw-feed', async (req, res) => {
     try {
-        const cutoff24h = Date.now() - 24 * 60 * 60 * 1000;
+        const cutoff24h = Date.now() - 48 * 60 * 60 * 1000;
 
-        // First: scan existing DB for OpenClaw-related posts from last 24h
-        const allPosts = db.getPosts({ page: 1, limit: 500, daysBack: 1 }).posts || [];
+        // First: scan existing DB for OpenClaw-related posts from last 48h
+        const allPosts = db.getPosts({ page: 1, limit: 1000, daysBack: 2 }).posts || [];
         const dbOpenClaw = allPosts.filter(p => {
             const text = ((p.title || '') + ' ' + (p.content || '')).toLowerCase();
             return OPENCLAW_KEYWORDS.some(kw => text.includes(kw));

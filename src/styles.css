@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Dark mode variables */
+/* ===== CSS CUSTOM PROPERTIES ===== */
 :root {
     --bg-primary: #f9fafb;
     --bg-secondary: #ffffff;
@@ -11,25 +11,30 @@
     --border-color: #e5e7eb;
     --accent-primary: #8b5cf6;
     --accent-secondary: #a855f7;
+    --accent-pink: #e040fb;
     --card-bg: #ffffff;
     --card-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    /* UI ENHANCEMENT: Navbar height variable for consistency */
+    --navbar-height: 64px;
 }
 
+/* UI ENHANCEMENT: Deeper, more premium dark mode palette */
 .dark {
-    --bg-primary: #0f0f0f;
-    --bg-secondary: #1a1a1a;
-    --bg-tertiary: #1f1a2e;
-    --text-primary: #f3f4f6;
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #14141a;
+    --bg-tertiary: #1a1a24;
+    --text-primary: #f0f0f5;
     --text-secondary: #9ca3af;
     --text-muted: #6b7280;
-    --border-color: #2d2d2d;
+    --border-color: #2a2a35;
     --accent-primary: #a78bfa;
     --accent-secondary: #c084fc;
-    --card-bg: #1a1a1a;
-    --card-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    --accent-pink: #e040fb;
+    --card-bg: #14141a;
+    --card-shadow: 0 2px 8px rgba(0,0,0,0.4);
 }
 
-/* Custom utilities */
+/* ===== CUSTOM UTILITIES ===== */
 @layer utilities {
     .line-clamp-2 {
         display: -webkit-box;
@@ -46,29 +51,88 @@
     }
 }
 
-/* Smooth scrolling */
+/* ===== GLOBAL BASE STYLES ===== */
+/* UI ENHANCEMENT: Smooth scroll globally */
 html {
     scroll-behavior: smooth;
 }
 
-/* Dark mode base styles */
+/* UI ENHANCEMENT: Typography and background improvements */
 body {
     background-color: var(--bg-primary);
     color: var(--text-primary);
     transition: background-color 0.3s ease, color 0.3s ease;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 .dark body {
     background-color: var(--bg-primary);
 }
 
-/* Focus styles */
+/* UI ENHANCEMENT: Brand-colored focus outlines for accessibility */
 *:focus-visible {
-    outline: 2px solid var(--accent-primary);
+    outline: 2px solid var(--accent-pink);
     outline-offset: 2px;
 }
 
-/* Skeleton animation */
+/* ===== SCROLL PROGRESS BAR ===== */
+/* UI ENHANCEMENT: Thin progress bar showing scroll depth at top of viewport */
+.scroll-progress-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #e040fb, #a855f7, #06b6d4);
+    z-index: 9999;
+    transition: width 50ms linear;
+    border-radius: 0 2px 2px 0;
+}
+
+/* ===== CUSTOM SCROLLBAR ===== */
+/* UI ENHANCEMENT: Thin custom scrollbar with accent thumb */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c084fc;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a855f7;
+}
+
+.dark ::-webkit-scrollbar-track {
+    background: #0a0a0f;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+    background: #4a3a6a;
+    border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+    background: #6d5a94;
+}
+
+/* ===== HIDE SCROLLBAR UTILITY ===== */
+.hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+/* ===== SKELETON ANIMATION ===== */
 @keyframes shimmer {
     0% {
         background-position: -200% 0;
@@ -91,7 +155,7 @@ body {
     }
 }
 
-/* Dark mode specific overrides */
+/* ===== DARK MODE OVERRIDES ===== */
 .dark .bg-white {
     background-color: var(--card-bg) !important;
 }
@@ -131,7 +195,7 @@ body {
 }
 
 .dark .hover\:bg-gray-50:hover {
-    background-color: #252525 !important;
+    background-color: #1e1e28 !important;
 }
 
 .dark .bg-purple-100 {
@@ -174,25 +238,6 @@ body {
     border-color: var(--border-color) !important;
 }
 
-/* Scrollbar styling for dark mode */
-.dark ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-}
-
-.dark ::-webkit-scrollbar-track {
-    background: var(--bg-primary);
-}
-
-.dark ::-webkit-scrollbar-thumb {
-    background: #404040;
-    border-radius: 4px;
-}
-
-.dark ::-webkit-scrollbar-thumb:hover {
-    background: #505050;
-}
-
 /* ===== GLASSMORPHISM COMPONENTS ===== */
 .glass-card {
     background: rgba(255, 255, 255, 0.7);
@@ -209,13 +254,14 @@ body {
 }
 
 .dark .glass-card {
-    background: rgba(26, 26, 26, 0.8);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    background: rgba(20, 20, 26, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
 .dark .glass-card:hover {
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
 }
 
 .glass-card-solid {
@@ -227,9 +273,27 @@ body {
 }
 
 .dark .glass-card-solid {
-    background: rgba(20, 20, 20, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+    background: rgba(10, 10, 15, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+}
+
+/* ===== NAVBAR GLASSMORPHISM ===== */
+/* UI ENHANCEMENT: Premium glassmorphism navbar with backdrop blur */
+.navbar-glass {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(24px) saturate(1.5);
+    -webkit-backdrop-filter: blur(24px) saturate(1.5);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 1px 12px rgba(0, 0, 0, 0.06);
+}
+
+.dark .navbar-glass {
+    background: rgba(10, 10, 15, 0.88);
+    backdrop-filter: blur(24px) saturate(1.2);
+    -webkit-backdrop-filter: blur(24px) saturate(1.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 1px 20px rgba(0, 0, 0, 0.4);
 }
 
 /* ===== FLOATING BACKGROUND ANIMATIONS ===== */
@@ -339,6 +403,13 @@ body {
         radial-gradient(at 0% 100%, rgba(34, 197, 94, 0.1) 0px, transparent 50%);
 }
 
+/* ===== SUBTLE BACKGROUND TEXTURE ===== */
+/* UI ENHANCEMENT: Dot-grid noise texture for depth in dark mode */
+.dark .bg-texture {
+    background-image: radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 24px 24px;
+}
+
 /* ===== TRENDING BADGE ANIMATION ===== */
 @keyframes trending-pulse {
     0%, 100% {
@@ -374,9 +445,15 @@ body {
 }
 
 /* ===== POST CARD ENHANCEMENTS ===== */
+/* UI ENHANCEMENT: Source-colored accent line and hover effects */
 .post-card {
     position: relative;
     overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.post-card:hover {
+    transform: translateY(-4px);
 }
 
 .post-card::before {
@@ -401,15 +478,144 @@ body {
     outline-offset: 2px;
 }
 
-/* ===== COUNTDOWN TIMER ===== */
-.countdown-ring {
-    transition: stroke-dashoffset 1s linear;
+/* UI ENHANCEMENT: Favorited card golden glow */
+.post-card.is-favorited {
+    border-color: rgba(250, 204, 21, 0.2) !important;
+    box-shadow: 0 0 20px rgba(250, 204, 21, 0.06), 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
-/* ===== STATS CARD GRADIENT ===== */
+.dark .post-card.is-favorited {
+    border-color: rgba(250, 204, 21, 0.15) !important;
+    box-shadow: 0 0 24px rgba(250, 204, 21, 0.08), 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* UI ENHANCEMENT: Source-specific accent colors on cards */
+.post-card-accent-reddit { border-top: 2px solid #ff4500 !important; }
+.post-card-accent-github { border-top: 2px solid #8b5cf6 !important; }
+.post-card-accent-hackernews { border-top: 2px solid #f59e0b !important; }
+.post-card-accent-devto { border-top: 2px solid #a855f7 !important; }
+.post-card-accent-anthropic { border-top: 2px solid #3b82f6 !important; }
+.post-card-accent-openclaw { border-top: 2px solid #10b981 !important; }
+.post-card-accent-moltbot { border-top: 2px solid #d946ef !important; }
+.post-card-accent-clawdbot { border-top: 2px solid #0ea5e9 !important; }
+
+/* ===== NEW BADGE SHIMMER ===== */
+/* UI ENHANCEMENT: Animated NEW badge that draws attention */
+@keyframes new-badge-shimmer {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+}
+
+.new-badge-animated {
+    background: linear-gradient(
+        110deg,
+        rgba(34, 197, 94, 0.2) 0%,
+        rgba(34, 197, 94, 0.35) 45%,
+        rgba(74, 222, 128, 0.5) 50%,
+        rgba(34, 197, 94, 0.35) 55%,
+        rgba(34, 197, 94, 0.2) 100%
+    );
+    background-size: 200% 100%;
+    animation: new-badge-shimmer 2.5s ease-in-out infinite;
+}
+
+/* ===== FAVORITE STAR ANIMATION ===== */
+/* UI ENHANCEMENT: Pop + color burst animation on star click */
+@keyframes star-pop {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.35);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.favorite-star {
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.favorite-star:active {
+    animation: star-pop 0.35s ease;
+}
+
+.favorite-star.is-favorited {
+    filter: drop-shadow(0 0 4px rgba(250, 204, 21, 0.5));
+}
+
+/* ===== LIVE INDICATOR GLOW ===== */
+/* UI ENHANCEMENT: Subtle green glow on live status pill */
+.live-indicator-glow {
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.3), 0 0 12px rgba(34, 197, 94, 0.15);
+    animation: live-glow 2s ease-in-out infinite;
+}
+
+@keyframes live-glow {
+    0%, 100% {
+        box-shadow: 0 0 6px rgba(34, 197, 94, 0.3), 0 0 12px rgba(34, 197, 94, 0.15);
+    }
+    50% {
+        box-shadow: 0 0 10px rgba(34, 197, 94, 0.5), 0 0 20px rgba(34, 197, 94, 0.25);
+    }
+}
+
+/* ===== SEGMENTED CONTROL (View Toggle) ===== */
+/* UI ENHANCEMENT: iOS-style sliding toggle for view selector */
+.segmented-control {
+    position: relative;
+    display: inline-flex;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    padding: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.segmented-control-slider {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    border-radius: 10px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 0;
+}
+
+.segmented-control button {
+    position: relative;
+    z-index: 1;
+}
+
+/* ===== SEARCH BAR ENHANCEMENTS ===== */
+/* UI ENHANCEMENT: Glowing focus ring + animated placeholder */
+.search-bar-enhanced {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.search-bar-enhanced:focus-within {
+    border-color: var(--accent-pink) !important;
+    box-shadow: 0 0 0 3px rgba(224, 64, 251, 0.15), 0 0 12px rgba(224, 64, 251, 0.1);
+}
+
+@keyframes placeholder-shimmer {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.7; }
+}
+
+.search-bar-enhanced input::placeholder {
+    animation: placeholder-shimmer 3s ease-in-out infinite;
+}
+
+/* ===== STATS CARD ENHANCEMENTS ===== */
+/* UI ENHANCEMENT: Unique accent colors and hover lift for stat cards */
 .stat-card {
     position: relative;
     overflow: hidden;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
 }
 
 .stat-card::after {
@@ -419,8 +625,160 @@ body {
     right: -50%;
     width: 100%;
     height: 100%;
-    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%);
     pointer-events: none;
+}
+
+/* UI ENHANCEMENT: Color-coded left border accents */
+.stat-card-blue { border-left: 3px solid #3b82f6; }
+.stat-card-amber { border-left: 3px solid #f59e0b; }
+.stat-card-green { border-left: 3px solid #22c55e; }
+.stat-card-purple { border-left: 3px solid #a855f7; }
+
+/* ===== ANIMATED NUMBER COUNTING ===== */
+/* UI ENHANCEMENT: Count-up animation for stat values */
+.stat-value {
+    font-variant-numeric: tabular-nums;
+}
+
+/* ===== COUNTDOWN TIMER ===== */
+.countdown-ring {
+    transition: stroke-dashoffset 1s linear;
+}
+
+/* ===== VIEW TOGGLE STYLES ===== */
+.view-toggle {
+    position: relative;
+}
+
+.view-toggle::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent-primary);
+    transform: scaleX(0);
+    transition: transform 0.2s ease;
+}
+
+.view-toggle.active::after {
+    transform: scaleX(1);
+}
+
+/* ===== SOURCE FILTER PILL ENHANCEMENTS ===== */
+/* UI ENHANCEMENT: Inner glow on active pill, better contrast for unselected */
+.source-pill-active {
+    position: relative;
+    box-shadow: 0 4px 14px rgba(168, 85, 247, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+}
+
+.dark .source-pill-inactive {
+    background: rgba(255, 255, 255, 0.08);
+    color: #b0b0c0;
+}
+
+.dark .source-pill-inactive:hover {
+    background: rgba(255, 255, 255, 0.14);
+    color: #e0e0f0;
+}
+
+/* UI ENHANCEMENT: Right-edge fade gradient for scrollable pill rows */
+.scroll-fade-right {
+    position: relative;
+}
+
+.scroll-fade-right::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 48px;
+    background: linear-gradient(to right, transparent, var(--bg-secondary));
+    pointer-events: none;
+    z-index: 1;
+}
+
+.dark .scroll-fade-right::after {
+    background: linear-gradient(to right, transparent, rgba(20, 20, 26, 0.95));
+}
+
+/* ===== SUBREDDIT SCROLL CONTAINER ===== */
+/* UI ENHANCEMENT: Arrow buttons and fade edges for subreddit chips */
+.subreddit-scroll-container {
+    position: relative;
+}
+
+.subreddit-scroll-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.subreddit-scroll-btn:hover {
+    background: var(--accent-primary);
+    color: white;
+    border-color: var(--accent-primary);
+}
+
+.subreddit-scroll-btn-left {
+    left: -8px;
+}
+
+.subreddit-scroll-btn-right {
+    right: -8px;
+}
+
+.dark .subreddit-scroll-btn {
+    background: #1e1e2a;
+    border-color: #3a3a4a;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* ===== OPENCLAW BANNER ENHANCEMENTS ===== */
+/* UI ENHANCEMENT: More vivid diagonal gradient header */
+.openclaw-header-gradient {
+    background: linear-gradient(135deg, #059669 0%, #0d9488 40%, #06b6d4 100%) !important;
+}
+
+/* UI ENHANCEMENT: Pulsing LIVE pill */
+@keyframes live-pulse {
+    0%, 100% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
+    }
+    50% {
+        opacity: 0.9;
+        box-shadow: 0 0 0 4px rgba(34, 197, 94, 0);
+    }
+}
+
+.live-pill-pulse {
+    animation: live-pulse 2s ease-in-out infinite;
+}
+
+/* UI ENHANCEMENT: Chevron rotation on collapse/expand */
+.chevron-animated {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chevron-animated.expanded {
+    transform: rotate(180deg);
 }
 
 /* ===== KEYBOARD SHORTCUT STYLES ===== */
@@ -469,9 +827,9 @@ kbd {
 .dark .skeleton {
     background: linear-gradient(
         90deg,
-        rgba(60, 60, 60, 0.3) 25%,
-        rgba(80, 80, 80, 0.5) 50%,
-        rgba(60, 60, 60, 0.3) 75%
+        rgba(60, 60, 70, 0.3) 25%,
+        rgba(80, 80, 95, 0.5) 50%,
+        rgba(60, 60, 70, 0.3) 75%
     );
     background-size: 200% 100%;
 }
@@ -488,48 +846,6 @@ kbd {
 
 .dark .hover-lift:hover {
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
-}
-
-/* ===== FAVORITES STAR ANIMATION ===== */
-@keyframes star-pop {
-    0% {
-        transform: scale(1);
-    }
-    50% {
-        transform: scale(1.3);
-    }
-    100% {
-        transform: scale(1);
-    }
-}
-
-.favorite-star {
-    transition: transform 0.2s ease;
-}
-
-.favorite-star:active {
-    animation: star-pop 0.3s ease;
-}
-
-/* ===== VIEW TOGGLE STYLES ===== */
-.view-toggle {
-    position: relative;
-}
-
-.view-toggle::after {
-    content: '';
-    position: absolute;
-    bottom: -2px;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: var(--accent-primary);
-    transform: scaleX(0);
-    transition: transform 0.2s ease;
-}
-
-.view-toggle.active::after {
-    transform: scaleX(1);
 }
 
 /* ===== LOADING DOTS ===== */
@@ -555,4 +871,128 @@ kbd {
 
 .loading-dot:nth-child(3) {
     animation-delay: 0.4s;
+}
+
+/* ===== BACK TO TOP BUTTON ===== */
+/* UI ENHANCEMENT: Floating back-to-top button */
+.back-to-top {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 40;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #e040fb, #a855f7);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 4px 14px rgba(168, 85, 247, 0.4);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 0;
+    transform: translateY(16px);
+    pointer-events: none;
+}
+
+.back-to-top.visible {
+    opacity: 0.85;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.back-to-top:hover {
+    opacity: 1;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(168, 85, 247, 0.5);
+}
+
+/* ===== NEW POSTS NOTIFICATION BANNER ===== */
+/* UI ENHANCEMENT: Flash banner when new posts arrive via Socket.IO */
+@keyframes slide-down-in {
+    from { transform: translateY(-100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.new-posts-banner {
+    animation: slide-down-in 0.3s ease-out forwards;
+}
+
+/* ===== ICON BUTTON TOOLTIP WRAPPER ===== */
+/* UI ENHANCEMENT: Hover tooltips on navbar icon buttons */
+.icon-btn-wrapper {
+    position: relative;
+}
+
+.icon-btn-tooltip {
+    position: absolute;
+    bottom: -32px;
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s ease;
+    z-index: 50;
+}
+
+.dark .icon-btn-tooltip {
+    background: #1e1e2a;
+    border-color: #3a3a4a;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.icon-btn-wrapper:hover .icon-btn-tooltip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* ===== SUBTITLE BREADCRUMB ===== */
+/* UI ENHANCEMENT: Styled separator dots for subtitle items */
+.subtitle-separator {
+    display: inline-block;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    margin: 0 8px;
+    vertical-align: middle;
+}
+
+/* ===== RESPONSIVE ADJUSTMENTS ===== */
+/* UI ENHANCEMENT: Mobile-first responsive rules */
+@media (max-width: 768px) {
+    .navbar-subtitle {
+        display: none !important;
+    }
+
+    .stat-card-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+
+    .back-to-top {
+        bottom: 16px;
+        right: 16px;
+    }
+}
+
+/* ===== SEARCH CLEAR BUTTON ===== */
+.search-clear-btn {
+    transition: all 0.2s ease;
+    opacity: 0.6;
+}
+
+.search-clear-btn:hover {
+    opacity: 1;
+    transform: scale(1.1);
 }

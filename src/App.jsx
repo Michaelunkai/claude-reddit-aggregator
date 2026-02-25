@@ -33,39 +33,100 @@ function useCountdown(targetTime, onComplete) {
     return { minutes, seconds, timeLeft };
 }
 
+// UI ENHANCEMENT: Hook for scroll progress tracking
+function useScrollProgress() {
+    const [progress, setProgress] = useState(0);
+    const [showBackToTop, setShowBackToTop] = useState(false);
+
+    useEffect(() => {
+        const handleScroll = () => {
+            const scrollTop = window.scrollY;
+            const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+            const scrollPercent = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+            setProgress(scrollPercent);
+            setShowBackToTop(scrollTop > 400);
+        };
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
+    return { progress, showBackToTop };
+}
+
+// UI ENHANCEMENT: Animated counter hook for stat cards
+function useAnimatedCounter(target, duration = 600) {
+    const [count, setCount] = useState(0);
+    const prevTarget = useRef(0);
+
+    useEffect(() => {
+        const numTarget = typeof target === 'string' ? parseInt(target.replace(/,/g, ''), 10) : (target || 0);
+        if (isNaN(numTarget)) { setCount(0); return; }
+        const start = prevTarget.current;
+        const diff = numTarget - start;
+        if (diff === 0) return;
+        const startTime = performance.now();
+        const animate = (now) => {
+            const elapsed = now - startTime;
+            const t = Math.min(elapsed / duration, 1);
+            // Ease-out cubic
+            const eased = 1 - Math.pow(1 - t, 3);
+            setCount(Math.round(start + diff * eased));
+            if (t < 1) requestAnimationFrame(animate);
+            else prevTarget.current = numTarget;
+        };
+        requestAnimationFrame(animate);
+    }, [target, duration]);
+
+    return count;
+}
+
 // Source metadata
+// UI ENHANCEMENT: Added accentHex for source-colored card top lines
 const SOURCE_META = {
-    reddit:     { icon: '🔴', name: 'Reddit',         color: 'from-orange-500 to-red-500' },
-    hackernews: { icon: '🟠', name: 'Hacker News',    color: 'from-amber-500 to-orange-600' },
-    github:     { icon: '⚫', name: 'GitHub',         color: 'from-gray-500 to-slate-700' },
-    devto:      { icon: '🟣', name: 'Dev.to',         color: 'from-purple-500 to-violet-700' },
-    anthropic:  { icon: '🔵', name: 'Anthropic',      color: 'from-blue-500 to-cyan-600' },
-    openclaw:   { icon: '🦅', name: 'OpenClaw',       color: 'from-emerald-500 to-teal-600' },
-    moltbot:    { icon: '🤖', name: 'MoltBot',        color: 'from-fuchsia-500 to-pink-600' },
-    clawdbot:   { icon: '📱', name: 'ClawdBot',       color: 'from-sky-500 to-indigo-600' },
+    reddit:     { icon: '🔴', name: 'Reddit',         color: 'from-orange-500 to-red-500',     accentHex: '#ff4500' },
+    hackernews: { icon: '🟠', name: 'Hacker News',    color: 'from-amber-500 to-orange-600',   accentHex: '#f59e0b' },
+    github:     { icon: '⚫', name: 'GitHub',         color: 'from-gray-500 to-slate-700',     accentHex: '#8b5cf6' },
+    devto:      { icon: '🟣', name: 'Dev.to',         color: 'from-purple-500 to-violet-700',  accentHex: '#7c3aed' },
+    anthropic:  { icon: '🔵', name: 'Anthropic',      color: 'from-blue-500 to-cyan-600',      accentHex: '#3b82f6' },
+    openclaw:   { icon: '🦅', name: 'OpenClaw',       color: 'from-emerald-500 to-teal-600',   accentHex: '#10b981' },
+    moltbot:    { icon: '🤖', name: 'MoltBot',        color: 'from-fuchsia-500 to-pink-600',   accentHex: '#d946ef' },
+    clawdbot:   { icon: '📱', name: 'ClawdBot',       color: 'from-sky-500 to-indigo-600',     accentHex: '#0ea5e9' },
 };
 function getSourceMeta(post) { return SOURCE_META[post.source] || SOURCE_META.reddit; }
 
 function SourceBadge({ post }) {
     const m = getSourceMeta(post);
     return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-black/20 text-white/80 border border-white/10">
+        // UI ENHANCEMENT: Color-coded source badge background
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-black/25 text-white/90 border border-white/10 tracking-wide">
             {m.icon} {m.name}
         </span>
     );
 }
 
-// Loading skeleton component
+// UI ENHANCEMENT: Skeleton cards with shimmer effect matching card layout
 function PostSkeleton() {
     return (
-        <div className="glass-card rounded-2xl p-6 animate-pulse">
-            <div className="h-4 bg-white/20 rounded-full w-24 mb-4"></div>
-            <div className="h-5 bg-white/20 rounded-lg w-3/4 mb-3"></div>
-            <div className="h-4 bg-white/15 rounded-lg w-full mb-2"></div>
-            <div className="h-4 bg-white/15 rounded-lg w-5/6 mb-4"></div>
-            <div className="flex justify-between">
-                <div className="h-4 bg-white/10 rounded-full w-20"></div>
-                <div className="h-4 bg-white/10 rounded-full w-24"></div>
+        <div className="glass-card rounded-2xl overflow-hidden">
+            {/* Accent line skeleton */}
+            <div className="h-[2px] skeleton"></div>
+            <div className="p-5">
+                <div className="flex items-center gap-2 mb-4">
+                    <div className="h-6 skeleton rounded-full w-20"></div>
+                    <div className="h-5 skeleton rounded-full w-16"></div>
+                </div>
+                <div className="h-5 skeleton rounded-lg w-4/5 mb-2"></div>
+                <div className="h-5 skeleton rounded-lg w-3/5 mb-4"></div>
+                <div className="h-4 skeleton rounded-lg w-full mb-2"></div>
+                <div className="h-4 skeleton rounded-lg w-5/6 mb-2"></div>
+                <div className="h-4 skeleton rounded-lg w-4/6 mb-5"></div>
+                <div className="flex justify-between">
+                    <div className="flex gap-3">
+                        <div className="h-4 skeleton rounded-full w-14"></div>
+                        <div className="h-4 skeleton rounded-full w-12"></div>
+                    </div>
+                    <div className="h-4 skeleton rounded-full w-24"></div>
+                </div>
             </div>
         </div>
     );
@@ -86,9 +147,11 @@ function TrendingBadge({ rank }) {
 }
 
 // Post card component
+// UI ENHANCEMENT: Major card redesign with source-colored accent, hover lift, golden glow for favorites
 function PostCard({ post, isFavorite, onToggleFavorite, isSelected, onSelect, showTrending, rank }) {
     const isNew = (Date.now() - new Date(post.created_at).getTime()) < 4 * 60 * 60 * 1000;
     const isReddit = !post.source || post.source === 'reddit';
+    const [starAnimating, setStarAnimating] = useState(false);
 
     const formatDate = (dateString, source) => {
         if (!dateString) return 'Unknown date';
@@ -157,10 +220,19 @@ function PostCard({ post, isFavorite, onToggleFavorite, isSelected, onSelect, sh
 
     const gradientClass = subredditColors[post.subreddit] || 'from-gray-500 to-gray-600';
     const subLabel = isReddit ? `r/${post.subreddit}` : post.subreddit;
+    // UI ENHANCEMENT: Get source accent color for top line
+    const sourceMeta = getSourceMeta(post);
+
+    const handleStarClick = (e) => {
+        e.stopPropagation();
+        setStarAnimating(true);
+        onToggleFavorite(post.reddit_id);
+        setTimeout(() => setStarAnimating(false), 400);
+    };
 
     return (
         <article
-            className={`glass-card rounded-2xl overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl cursor-pointer relative group ${isSelected ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-transparent' : ''}`}
+            className={`post-card glass-card rounded-2xl overflow-hidden cursor-pointer relative group ${isFavorite ? 'is-favorited' : ''} ${isSelected ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-transparent' : ''}`}
             onClick={() => onSelect(post)}
             tabIndex={0}
             role="button"
@@ -168,8 +240,8 @@ function PostCard({ post, isFavorite, onToggleFavorite, isSelected, onSelect, sh
         >
             {showTrending && rank <= 3 && <TrendingBadge rank={rank} />}
 
-            {/* Gradient top bar */}
-            <div className={`h-1.5 bg-gradient-to-r ${gradientClass}`}></div>
+            {/* UI ENHANCEMENT: Source-colored top accent line (2px) */}
+            <div className="card-accent-line" style={{ background: `linear-gradient(90deg, ${sourceMeta.accentHex}, ${sourceMeta.accentHex}88)` }}></div>
 
             <div className="p-5">
                 <div className="flex items-start justify-between mb-3 gap-2 flex-wrap">
@@ -178,44 +250,45 @@ function PostCard({ post, isFavorite, onToggleFavorite, isSelected, onSelect, sh
                             {subLabel}
                         </span>
                         <SourceBadge post={post} />
-                        {isNew && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-500/20 text-green-400 border border-green-500/30 animate-pulse">NEW</span>}
+                        {/* UI ENHANCEMENT: NEW badge with shimmer animation */}
+                        {isNew && <span className="new-badge inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-500/20 text-green-400 border border-green-500/30">NEW</span>}
                     </div>
+                    {/* UI ENHANCEMENT: Animated star with pop effect on click */}
                     <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleFavorite(post.reddit_id);
-                        }}
-                        className={`p-2 rounded-full transition-all duration-200 ${isFavorite
+                        onClick={handleStarClick}
+                        className={`favorite-star p-2 rounded-full transition-all duration-200 ${starAnimating ? 'animate-pop' : ''} ${isFavorite
                             ? 'text-yellow-400 bg-yellow-400/20 hover:bg-yellow-400/30 scale-110'
                             : 'text-gray-400 hover:text-yellow-400 hover:bg-white/10'
                         }`}
                         aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                     >
-                        <svg className="w-5 h-5 transition-transform" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                         </svg>
                     </button>
                 </div>
 
-                <h3 className="text-lg font-bold text-white group-hover:text-purple-300 transition-colors mb-2 line-clamp-2 leading-snug">
+                {/* UI ENHANCEMENT: Better typography — heavier title, improved line-height */}
+                <h3 className="card-title text-lg font-semibold text-white/95 group-hover:text-purple-300 transition-colors duration-200 mb-2 line-clamp-2 leading-[1.35] tracking-tight">
                     {post.title}
                 </h3>
 
                 {excerpt && (
-                    <p className="text-gray-300 text-sm mb-4 line-clamp-3 leading-relaxed">
+                    <p className="text-gray-400 text-sm mb-4 line-clamp-3 leading-relaxed tracking-snug">
                         {excerpt}
                     </p>
                 )}
 
-                <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center space-x-4">
+                {/* UI ENHANCEMENT: Cleaner bottom meta row with consistent alignment */}
+                <div className="flex items-center justify-between text-sm pt-1 border-t border-white/5">
+                    <div className="flex items-center space-x-4 mt-2">
                         {post.source === 'github' ? (
                             <span className="flex items-center text-yellow-400 font-medium">
                                 ⭐ {(post.upvotes || 0).toLocaleString()}
                             </span>
                         ) : (
                             <span className="flex items-center text-orange-400 font-medium">
-                                <svg className="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
+                                <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                     <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
                                 </svg>
                                 {(post.upvotes || 0).toLocaleString()}
@@ -223,23 +296,24 @@ function PostCard({ post, isFavorite, onToggleFavorite, isSelected, onSelect, sh
                         )}
                         {post.source !== 'github' && (
                             <span className="flex items-center text-blue-400">
-                                <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                 </svg>
                                 {post.num_comments || 0}
                             </span>
                         )}
                     </div>
-                    <div className="flex items-center space-x-2 text-gray-400">
-                        <span className="truncate max-w-[100px]">{isReddit ? `u/${post.author}` : post.author}</span>
-                        <span className="text-gray-600">|</span>
-                        <span className="text-purple-400">{formatDate(post.created_at, post.source)}</span>
+                    {/* UI ENHANCEMENT: Right-aligned author + time, muted with separator */}
+                    <div className="flex items-center space-x-2 text-gray-500 text-xs mt-2">
+                        <span className="truncate max-w-[80px]">{isReddit ? `u/${post.author}` : post.author}</span>
+                        <span className="text-gray-600/50">·</span>
+                        <span className="text-purple-400/80">{formatDate(post.created_at, post.source)}</span>
                     </div>
                 </div>
             </div>
 
             {/* Hover gradient overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-purple-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-purple-900/15 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
         </article>
     );
 }
@@ -386,54 +460,81 @@ function PostModal({ post, isOpen, onClose, isFavorite, onToggleFavorite }) {
     );
 }
 
-// Subreddit filter chips
+// UI ENHANCEMENT: Subreddit chips with scroll arrows, fade gradient, and active dot indicator
 function SubredditChips({ subreddits, selected, onSelect }) {
+    const scrollRef = useRef(null);
+
+    const scrollBy = (dir) => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollBy({ left: dir * 200, behavior: 'smooth' });
+        }
+    };
+
     return (
-        <div className="flex flex-wrap gap-2">
-            <button
-                onClick={() => onSelect('')}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                    selected === ''
-                        ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30'
-                        : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                }`}
-            >
-                All
+        <div className="scroll-fade-container relative">
+            {/* UI ENHANCEMENT: Left scroll arrow for desktop */}
+            <button onClick={() => scrollBy(-1)} className="scroll-arrow left hidden md:flex" aria-label="Scroll left">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             </button>
-            {subreddits.map(sub => (
+            <div ref={scrollRef} className="flex gap-2 overflow-x-auto scrollbar-hide py-1 px-1">
                 <button
-                    key={sub.name}
-                    onClick={() => onSelect(sub.name)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center space-x-1.5 ${
-                        selected === sub.name
-                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30'
-                            : sub.count > 0
-                                ? 'bg-white/10 text-gray-300 hover:bg-white/20'
-                                : 'bg-white/5 text-gray-600 hover:bg-white/10 hover:text-gray-400'
+                    onClick={() => onSelect('')}
+                    className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                        selected === ''
+                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30 source-pill-active'
+                            : 'bg-white/10 text-gray-300 hover:bg-white/20'
                     }`}
                 >
-                    <span>r/{sub.name}</span>
-                    {sub.count > 0 && (
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
-                            selected === sub.name ? 'bg-white/20 text-white' : 'bg-purple-500/30 text-purple-300'
-                        }`}>{sub.count}</span>
-                    )}
+                    All
                 </button>
-            ))}
+                {subreddits.map(sub => (
+                    <button
+                        key={sub.name}
+                        onClick={() => onSelect(sub.name)}
+                        className={`shrink-0 subreddit-chip px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center space-x-1.5 ${
+                            selected === sub.name
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30 active source-pill-active'
+                                : sub.count > 0
+                                    ? 'bg-white/10 text-gray-300 hover:bg-white/20'
+                                    : 'bg-white/5 text-gray-600 hover:bg-white/10 hover:text-gray-400'
+                        }`}
+                    >
+                        {/* UI ENHANCEMENT: Active dot indicator */}
+                        {selected === sub.name && <span className="w-1.5 h-1.5 rounded-full bg-white"></span>}
+                        <span>r/{sub.name}</span>
+                        {sub.count > 0 && (
+                            <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
+                                selected === sub.name ? 'bg-white/20 text-white' : 'bg-purple-500/30 text-purple-300'
+                            }`}>{sub.count}</span>
+                        )}
+                    </button>
+                ))}
+            </div>
+            {/* UI ENHANCEMENT: Right scroll arrow for desktop */}
+            <button onClick={() => scrollBy(1)} className="scroll-arrow right hidden md:flex" aria-label="Scroll right">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            </button>
         </div>
     );
 }
 
-// Stats card component
-function StatCard({ icon, label, value, color, trend }) {
+// UI ENHANCEMENT: Stats card with unique accent border, animated counter, hover lift
+function StatCard({ icon, label, value, color, trend, accentClass }) {
+    // Parse numeric value for animated counter
+    const numericValue = typeof value === 'string' ? parseInt(value.replace(/,/g, ''), 10) : (value || 0);
+    const animatedValue = useAnimatedCounter(isNaN(numericValue) ? 0 : numericValue);
+
     return (
-        <div className="glass-card rounded-xl p-4 flex items-center space-x-4">
+        <div className={`stat-card glass-card rounded-xl p-4 flex items-center space-x-4 ${accentClass || ''}`}>
             <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center shadow-lg`}>
                 {icon}
             </div>
             <div>
-                <p className="text-gray-400 text-sm">{label}</p>
-                <p className="text-2xl font-bold text-white">{value}</p>
+                <p className="text-gray-400 text-sm font-medium tracking-wide">{label}</p>
+                {/* UI ENHANCEMENT: Animated counting number */}
+                <p className="stat-value text-2xl font-bold text-white tabular-nums">
+                    {animatedValue.toLocaleString()}
+                </p>
                 {trend && (
                     <p className={`text-xs ${trend > 0 ? 'text-green-400' : 'text-red-400'}`}>
                         {trend > 0 ? '+' : ''}{trend}% from yesterday
@@ -444,7 +545,7 @@ function StatCard({ icon, label, value, color, trend }) {
     );
 }
 
-// Keyboard shortcuts help
+// UI ENHANCEMENT: Styled keyboard shortcuts modal with blurred overlay backdrop
 function KeyboardShortcuts({ isOpen, onClose }) {
     if (!isOpen) return null;
 
@@ -461,27 +562,30 @@ function KeyboardShortcuts({ isOpen, onClose }) {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative glass-card rounded-2xl p-6 max-w-md w-full animate-scale-in">
-                <h3 className="text-xl font-bold text-white mb-4 flex items-center">
-                    <svg className="w-6 h-6 mr-2 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {/* UI ENHANCEMENT: Heavier blur on backdrop for premium feel */}
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={onClose} />
+            <div className="relative glass-card rounded-3xl p-8 max-w-md w-full animate-scale-in border border-white/10">
+                {/* UI ENHANCEMENT: Gradient top accent */}
+                <div className="absolute top-0 left-0 right-0 h-1 rounded-t-3xl bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500"></div>
+                <h3 className="text-xl font-bold text-white mb-6 flex items-center">
+                    <svg className="w-6 h-6 mr-2.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                     </svg>
                     Keyboard Shortcuts
                 </h3>
                 <div className="space-y-3">
                     {shortcuts.map((s, i) => (
-                        <div key={i} className="flex items-center justify-between">
-                            <kbd className="px-3 py-1.5 rounded-lg bg-white/10 text-purple-300 font-mono text-sm">
+                        <div key={i} className="flex items-center justify-between py-1.5 border-b border-white/5 last:border-0">
+                            <kbd className="px-3 py-1.5 rounded-lg bg-white/8 text-purple-300 font-mono text-sm border border-white/10">
                                 {s.key}
                             </kbd>
-                            <span className="text-gray-300">{s.action}</span>
+                            <span className="text-gray-300 text-sm">{s.action}</span>
                         </div>
                     ))}
                 </div>
                 <button
                     onClick={onClose}
-                    className="mt-6 w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium hover:opacity-90 transition-opacity"
+                    className="mt-8 w-full py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/20"
                 >
                     Got it!
                 </button>
@@ -490,7 +594,7 @@ function KeyboardShortcuts({ isOpen, onClose }) {
     );
 }
 
-// OpenClaw News Banner - Always visible, shows last 24h OpenClaw news
+// UI ENHANCEMENT: OpenClaw News Banner with vivid gradient, animated chevron, pulsing LIVE pill
 function OpenClawNewsBanner({ posts, onSelectPost, favorites, onToggleFavorite }) {
     const [expanded, setExpanded] = useState(true);
     const [scrollIndex, setScrollIndex] = useState(0);
@@ -498,11 +602,12 @@ function OpenClawNewsBanner({ posts, onSelectPost, favorites, onToggleFavorite }
     if (!posts || posts.length === 0) {
         return (
             <div className="mb-6 glass-card rounded-2xl overflow-hidden border border-emerald-500/20">
-                <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 px-5 py-3 flex items-center justify-between">
+                {/* UI ENHANCEMENT: More vivid diagonal gradient */}
+                <div className="bg-gradient-to-br from-emerald-600 via-teal-500 to-cyan-500 px-5 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <span className="text-2xl">🦅</span>
                         <div>
-                            <h2 className="text-white font-bold text-lg">OpenClaw News Feed</h2>
+                            <h2 className="text-white font-bold text-lg tracking-tight">OpenClaw News Feed</h2>
                             <p className="text-emerald-100/70 text-xs">Last 48 hours — auto-refreshes every 3 minutes</p>
                         </div>
                     </div>
@@ -518,92 +623,99 @@ function OpenClawNewsBanner({ posts, onSelectPost, favorites, onToggleFavorite }
 
     return (
         <div className="mb-6 glass-card rounded-2xl overflow-hidden border border-emerald-500/30 shadow-lg shadow-emerald-500/10">
-            {/* Header bar */}
-            <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 px-5 py-3 flex items-center justify-between">
+            {/* UI ENHANCEMENT: Vivid directional gradient header */}
+            <div className="bg-gradient-to-br from-emerald-600 via-teal-500 to-cyan-500 px-5 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <span className="text-2xl animate-pulse">🦅</span>
                     <div>
-                        <h2 className="text-white font-bold text-lg">OpenClaw News Feed</h2>
+                        <h2 className="text-white font-bold text-lg tracking-tight">OpenClaw News Feed</h2>
                         <p className="text-emerald-100/70 text-xs">Last 48 hours — {posts.length} items found</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    {/* UI ENHANCEMENT: Pulsing green LIVE pill */}
                     <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/15 text-emerald-100 border border-white/20">
-                        <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                        <span className="live-dot w-2 h-2 rounded-full bg-green-400"></span>
                         LIVE
                     </span>
+                    {/* UI ENHANCEMENT: Animated chevron on collapse/expand */}
                     <button
                         onClick={() => setExpanded(prev => !prev)}
-                        className="px-3 py-1 rounded-full text-xs font-semibold bg-white/10 text-white hover:bg-white/20 transition-all border border-white/10"
+                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/10 text-white hover:bg-white/20 transition-all border border-white/10"
                     >
+                        <svg className={`openclaw-chevron w-3.5 h-3.5 transition-transform duration-300 ${expanded ? '' : 'collapsed'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
                         {expanded ? 'Collapse' : `Show all (${posts.length})`}
                     </button>
                 </div>
             </div>
 
-            {/* News items */}
-            <div className="p-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {visiblePosts.map((post, idx) => {
-                        const isNew = (Date.now() - new Date(post.created_at).getTime()) < 4 * 60 * 60 * 1000;
-                        const timeDiff = Date.now() - new Date(post.created_at).getTime();
-                        const hours = Math.floor(timeDiff / 3600000);
-                        const mins = Math.floor(timeDiff / 60000);
-                        const timeStr = mins < 60 ? `${mins}m ago` : `${hours}h ago`;
-                        const isFav = favorites.includes(post.reddit_id);
-                        const srcMeta = SOURCE_META[post.source] || SOURCE_META.reddit;
+            {/* UI ENHANCEMENT: Smooth collapse transition */}
+            <div className={`openclaw-content ${expanded ? '' : 'max-h-0 opacity-0'}`} style={expanded ? { maxHeight: '1000px', opacity: 1 } : {}}>
+                <div className="p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {visiblePosts.map((post, idx) => {
+                            const isNew = (Date.now() - new Date(post.created_at).getTime()) < 4 * 60 * 60 * 1000;
+                            const timeDiff = Date.now() - new Date(post.created_at).getTime();
+                            const hours = Math.floor(timeDiff / 3600000);
+                            const mins = Math.floor(timeDiff / 60000);
+                            const timeStr = mins < 60 ? `${mins}m ago` : `${hours}h ago`;
+                            const isFav = favorites.includes(post.reddit_id);
+                            const srcMeta = SOURCE_META[post.source] || SOURCE_META.reddit;
 
-                        return (
-                            <div
-                                key={post.reddit_id || idx}
-                                onClick={() => onSelectPost(post)}
-                                className="group relative bg-white/5 hover:bg-white/10 border border-white/8 hover:border-emerald-500/30 rounded-xl p-3.5 cursor-pointer transition-all duration-200 hover:shadow-md hover:shadow-emerald-500/5"
-                            >
-                                <div className="flex items-start justify-between gap-2 mb-2">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/20">
-                                            {srcMeta.icon} {srcMeta.name}
-                                        </span>
-                                        {isNew && (
-                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-green-500/20 text-green-400 border border-green-500/30 animate-pulse">
-                                                NEW
+                            return (
+                                <div
+                                    key={post.reddit_id || idx}
+                                    onClick={() => onSelectPost(post)}
+                                    className="group relative bg-white/5 hover:bg-white/10 border border-white/8 hover:border-emerald-500/30 rounded-xl p-3.5 cursor-pointer transition-all duration-200 hover:shadow-md hover:shadow-emerald-500/5 hover:-translate-y-0.5"
+                                >
+                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/20">
+                                                {srcMeta.icon} {srcMeta.name}
                                             </span>
-                                        )}
+                                            {isNew && (
+                                                <span className="new-badge inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-green-500/20 text-green-400 border border-green-500/30">
+                                                    NEW
+                                                </span>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); onToggleFavorite(post.reddit_id); }}
+                                            className={`shrink-0 p-1 rounded-full transition-all ${isFav ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}`}
+                                        >
+                                            <svg className="w-3.5 h-3.5" fill={isFav ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                                            </svg>
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); onToggleFavorite(post.reddit_id); }}
-                                        className={`shrink-0 p-1 rounded-full transition-all ${isFav ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}`}
-                                    >
-                                        <svg className="w-3.5 h-3.5" fill={isFav ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                                        </svg>
-                                    </button>
-                                </div>
-                                <h3 className="text-sm font-semibold text-white group-hover:text-emerald-300 transition-colors line-clamp-2 leading-snug mb-2">
-                                    {post.title}
-                                </h3>
-                                <div className="flex items-center justify-between text-[11px] text-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-orange-400 font-medium">▲ {post.upvotes || 0}</span>
-                                        <span className="text-blue-400">💬 {post.num_comments || 0}</span>
+                                    <h3 className="text-sm font-semibold text-white group-hover:text-emerald-300 transition-colors line-clamp-2 leading-snug mb-2">
+                                        {post.title}
+                                    </h3>
+                                    <div className="flex items-center justify-between text-[11px] text-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-orange-400 font-medium">▲ {post.upvotes || 0}</span>
+                                            <span className="text-blue-400">💬 {post.num_comments || 0}</span>
+                                        </div>
+                                        <span className="text-emerald-400 font-medium">{timeStr}</span>
                                     </div>
-                                    <span className="text-emerald-400 font-medium">{timeStr}</span>
                                 </div>
-                            </div>
-                        );
-                    })}
-                </div>
-
-                {posts.length > 6 && expanded && (
-                    <div className="mt-3 text-center">
-                        <button
-                            onClick={() => setExpanded(false)}
-                            className="text-xs text-gray-500 hover:text-emerald-400 transition-colors"
-                        >
-                            Showing {visiblePosts.length} of {posts.length} — click collapse to minimize
-                        </button>
+                            );
+                        })}
                     </div>
-                )}
+
+                    {posts.length > 6 && expanded && (
+                        <div className="mt-3 text-center">
+                            <button
+                                onClick={() => setExpanded(false)}
+                                className="text-xs text-gray-500 hover:text-emerald-400 transition-colors"
+                            >
+                                Showing {visiblePosts.length} of {posts.length} — click collapse to minimize
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -920,52 +1032,73 @@ export default function App() {
         }
     }, [selectedIndex]);
 
+    // UI ENHANCEMENT: Scroll progress bar + back to top
+    const { progress, showBackToTop } = useScrollProgress();
+
     return (
         <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900' : 'bg-gradient-to-br from-gray-50 via-purple-50 to-pink-50'}`}>
+            {/* UI ENHANCEMENT: Scroll progress bar at very top */}
+            <div className="scroll-progress-bar" style={{ width: `${progress}%` }}></div>
+
             {/* Animated background elements */}
             <div className="fixed inset-0 overflow-hidden pointer-events-none">
                 <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-float"></div>
                 <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-pink-500/20 rounded-full blur-3xl animate-float-delayed"></div>
+                {/* UI ENHANCEMENT: Subtle dot-grid texture for dark mode depth */}
+                {darkMode && <div className="absolute inset-0 bg-noise"></div>}
             </div>
 
-            {/* Header */}
-            <header className="sticky top-0 z-40 glass-card-solid border-b border-white/10">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            {/* UI ENHANCEMENT: Taller navbar (h-16) with glassmorphism, better vertical centering */}
+            <header className="sticky top-0 z-40 navbar-glass">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center">
+                    <div className="flex flex-1 items-center justify-between">
                         {/* Logo and title */}
                         <div className="flex items-center space-x-4">
-                            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30 animate-glow">
-                                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {/* UI ENHANCEMENT: More prominent logo with better spacing */}
+                            <div className="navbar-logo-icon w-11 h-11 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/30 animate-glow">
+                                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                                 </svg>
                             </div>
                             <div>
-                                <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">
+                                <h1 className="text-xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent tracking-tight">
                                     Claude Hub 🦅
                                 </h1>
-                                <p className="text-sm text-gray-400">Claude · OpenClaw · MoltBot · ClawdBot · Claude Code</p>
+                                {/* UI ENHANCEMENT: Subtitle styled as intentional tag row with separators */}
+                                <p className="navbar-subtitle text-xs text-gray-500 flex items-center gap-1.5">
+                                    <span className="text-purple-400/70">Claude</span>
+                                    <span className="text-gray-600">·</span>
+                                    <span className="text-emerald-400/70">OpenClaw</span>
+                                    <span className="text-gray-600">·</span>
+                                    <span className="text-fuchsia-400/70">MoltBot</span>
+                                    <span className="text-gray-600">·</span>
+                                    <span className="text-sky-400/70">ClawdBot</span>
+                                    <span className="text-gray-600">·</span>
+                                    <span className="text-cyan-400/70">Claude Code</span>
+                                </p>
                             </div>
                         </div>
 
                         {/* Connection status and actions */}
-                        <div className="flex items-center space-x-3">
-                            {/* Live indicator with countdown */}
-                            <div className={`flex items-center space-x-2 px-4 py-2 rounded-full text-sm font-medium glass-card ${connected ? 'border-green-500/30' : 'border-red-500/30'}`}>
-                                <span className={`w-2.5 h-2.5 rounded-full ${connected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
-                                <span className={connected ? 'text-green-400' : 'text-red-400'}>
-                                    {connected ? 'Live' : 'Disconnected'}
+                        <div className="flex items-center space-x-2.5">
+                            {/* UI ENHANCEMENT: Live indicator with green glow when connected */}
+                            <div className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-full text-sm font-medium glass-card ${connected ? 'border-green-500/30 live-pill-glow' : 'border-red-500/30'}`}>
+                                <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500 live-dot' : 'bg-red-500'}`}></span>
+                                <span className={`text-xs font-semibold ${connected ? 'text-green-400' : 'text-red-400'}`}>
+                                    {connected ? 'Live' : 'Offline'}
                                 </span>
                                 {connected && (
                                     <span className="text-gray-500 text-xs">
-                                        | Next refresh: {minutes}:{seconds.toString().padStart(2, '0')}
+                                        | {minutes}:{seconds.toString().padStart(2, '0')}
                                     </span>
                                 )}
                             </div>
 
-                            {/* Action buttons */}
+                            {/* UI ENHANCEMENT: Icon buttons with tooltip labels and smooth hover */}
                             <button
                                 onClick={handleRefresh}
-                                className="p-2.5 rounded-xl glass-card text-gray-400 hover:text-purple-400 transition-all hover:scale-105"
+                                className="icon-btn-tooltip p-2 rounded-lg text-gray-400 hover:text-purple-400 hover:bg-white/10 transition-all duration-200 hover:scale-105"
+                                data-tooltip="Refresh (r)"
                                 title="Refresh posts (r)"
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -975,7 +1108,8 @@ export default function App() {
 
                             <button
                                 onClick={() => setDarkMode(prev => !prev)}
-                                className="p-2.5 rounded-xl glass-card text-gray-400 hover:text-yellow-400 transition-all hover:scale-105"
+                                className="icon-btn-tooltip p-2 rounded-lg text-gray-400 hover:text-yellow-400 hover:bg-white/10 transition-all duration-200 hover:scale-105"
+                                data-tooltip="Theme (d)"
                                 title="Toggle dark mode (d)"
                             >
                                 {darkMode ? (
@@ -991,7 +1125,8 @@ export default function App() {
 
                             <button
                                 onClick={() => setShowShortcuts(true)}
-                                className="p-2.5 rounded-xl glass-card text-gray-400 hover:text-purple-400 transition-all hover:scale-105"
+                                className="icon-btn-tooltip p-2 rounded-lg text-gray-400 hover:text-purple-400 hover:bg-white/10 transition-all duration-200 hover:scale-105"
+                                data-tooltip="Shortcuts (?)"
                                 title="Keyboard shortcuts (?)"
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1003,7 +1138,8 @@ export default function App() {
                                 href="https://github.com/Michaelunkai/claude-reddit-aggregator"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="p-2.5 rounded-xl glass-card text-gray-400 hover:text-white transition-all hover:scale-105"
+                                className="icon-btn-tooltip p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-all duration-200 hover:scale-105"
+                                data-tooltip="GitHub"
                                 title="View on GitHub"
                             >
                                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -1025,59 +1161,65 @@ export default function App() {
                     onToggleFavorite={toggleFavorite}
                 />
 
-                {/* Stats Cards */}
+                {/* UI ENHANCEMENT: Stats Cards with unique accent borders */}
                 {stats && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                         <StatCard
                             icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>}
                             label="Total Posts"
                             value={stats.totalPosts?.toLocaleString() || '0'}
-                            color="from-purple-500 to-indigo-600"
+                            color="from-blue-500 to-indigo-600"
+                            accentClass="stat-card-blue"
                         />
                         <StatCard
                             icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
                             label="Last 24 Hours"
                             value={stats.postsLast24h?.toLocaleString() || '0'}
-                            color="from-pink-500 to-rose-600"
+                            color="from-amber-500 to-orange-600"
+                            accentClass="stat-card-amber"
                         />
                         <StatCard
                             icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>}
                             label="Last 7 Days"
                             value={stats.postsLastWeek?.toLocaleString() || '0'}
-                            color="from-orange-500 to-amber-600"
+                            color="from-green-500 to-emerald-600"
+                            accentClass="stat-card-green"
                         />
                         <StatCard
                             icon={<svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>}
                             label="Favorites"
                             value={favorites.length.toLocaleString()}
-                            color="from-yellow-500 to-orange-600"
+                            color="from-purple-500 to-violet-600"
+                            accentClass="stat-card-purple"
                         />
                     </div>
                 )}
 
                 {/* View Toggle & Filters */}
                 <div className="glass-card rounded-2xl p-5 mb-6">
-                    {/* Source filter tabs */}
-                    <div className="flex gap-2 overflow-x-auto pb-2 mb-5" style={{scrollbarWidth:'none',msOverflowStyle:'none'}}>
-                        {[
-                            { id: 'all',        label: 'All',         icon: '✦' },
-                            { id: 'reddit',     label: 'Reddit',      icon: '🔴' },
-                            { id: 'anthropic',  label: 'Anthropic',   icon: '🔵' },
-                            { id: 'openclaw',   label: 'OpenClaw',    icon: '🦅' },
-                            { id: 'moltbot',    label: 'MoltBot',     icon: '🤖' },
-                            { id: 'clawdbot',   label: 'ClawdBot',    icon: '📱' },
-                            { id: 'hackernews', label: 'Hacker News', icon: '🟠' },
-                            { id: 'github',     label: 'GitHub',      icon: '⚫' },
-                            { id: 'devto',      label: 'Dev.to',      icon: '🟣' },
-                        ].map(src => (
-                            <button key={src.id} onClick={() => { setActiveSource(src.id); setPage(1); }}
-                                className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all ${activeSource === src.id ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg' : 'bg-white/8 text-gray-400 hover:bg-white/14 hover:text-white'}`}>
-                                <span>{src.icon}</span><span>{src.label}</span>
-                            </button>
-                        ))}
+                    {/* UI ENHANCEMENT: Source filter tabs with refined active pill and better dark mode contrast */}
+                    <div className="scroll-fade-container mb-5">
+                        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
+                            {[
+                                { id: 'all',        label: 'All',         icon: '✦' },
+                                { id: 'reddit',     label: 'Reddit',      icon: '🔴' },
+                                { id: 'anthropic',  label: 'Anthropic',   icon: '🔵' },
+                                { id: 'openclaw',   label: 'OpenClaw',    icon: '🦅' },
+                                { id: 'moltbot',    label: 'MoltBot',     icon: '🤖' },
+                                { id: 'clawdbot',   label: 'ClawdBot',    icon: '📱' },
+                                { id: 'hackernews', label: 'Hacker News', icon: '🟠' },
+                                { id: 'github',     label: 'GitHub',      icon: '⚫' },
+                                { id: 'devto',      label: 'Dev.to',      icon: '🟣' },
+                            ].map(src => (
+                                <button key={src.id} onClick={() => { setActiveSource(src.id); setPage(1); }}
+                                    className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${activeSource === src.id ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white source-pill-active' : 'source-pill-inactive bg-white/8 text-gray-400 hover:bg-white/14 hover:text-white'}`}>
+                                    <span>{src.icon}</span><span>{src.label}</span>
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                    {/* Topic quick-search chips */}
-                    <div className="flex flex-wrap gap-2 mb-5">
+                    {/* UI ENHANCEMENT: Sub-filter chips — slightly smaller, more muted/transparent */}
+                    <div className="flex flex-wrap gap-1.5 mb-5">
                         {[
                             { label: '🤖 Claude', q: 'claude' },
                             { label: '💻 Claude Code', q: 'claude code' },
@@ -1093,42 +1235,46 @@ export default function App() {
                             { label: '🔧 API', q: 'api' },
                         ].map(chip => (
                             <button key={chip.q} onClick={() => { setSearchTerm(chip.q); setPage(1); setActiveSource('all'); }}
-                                className="px-3 py-1.5 rounded-full text-xs font-semibold bg-white/6 border border-white/8 text-gray-400 hover:text-white hover:bg-white/12 hover:border-purple-500/40 transition-all">
+                                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all duration-200 ${searchTerm === chip.q ? 'bg-purple-500/20 border-purple-500/40 text-purple-300' : 'bg-white/4 border-white/6 text-gray-500 hover:text-gray-300 hover:bg-white/10 hover:border-purple-500/30'}`}>
                                 {chip.label}
                             </button>
                         ))}
                     </div>
-                    {/* View toggle tabs */}
-                    <div className="flex items-center space-x-2 mb-5">
+                    {/* UI ENHANCEMENT: iOS-style segmented control view toggle */}
+                    <div className="segmented-control mb-5 relative">
+                        {/* Sliding background indicator */}
+                        <div
+                            className="segment-slider"
+                            style={{
+                                left: view === 'grid' ? '3px' : '50%',
+                                width: 'calc(50% - 3px)',
+                                background: view === 'grid'
+                                    ? 'linear-gradient(135deg, #a855f7, #ec4899)'
+                                    : 'linear-gradient(135deg, #f97316, #ef4444)',
+                            }}
+                        ></div>
                         <button
                             onClick={() => setView('grid')}
-                            className={`px-5 py-2.5 rounded-xl font-medium transition-all ${view === 'grid' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+                            className={`segment ${view === 'grid' ? 'active' : ''}`}
                         >
-                            <span className="flex items-center space-x-2">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                                </svg>
-                                <span>All Posts</span>
-                            </span>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                            </svg>
+                            All Posts
                         </button>
                         <button
                             onClick={() => setView('trending')}
-                            className={`px-5 py-2.5 rounded-xl font-medium transition-all ${view === 'trending' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+                            className={`segment ${view === 'trending' ? 'active' : ''}`}
                         >
-                            <span className="flex items-center space-x-2">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
-                                </svg>
-                                <span>Trending</span>
-                            </span>
+                            🔥 Trending
                         </button>
                     </div>
 
                     {/* Search and filters */}
-                    <div className="flex flex-col lg:flex-row gap-4">
-                        {/* Search */}
+                    <div className="flex flex-col lg:flex-row gap-3">
+                        {/* UI ENHANCEMENT: Pill-shaped search with glowing focus ring and clear button */}
                         <div className="flex-1 relative">
-                            <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                             </svg>
                             <input
@@ -1140,8 +1286,20 @@ export default function App() {
                                     setSearchTerm(e.target.value);
                                     setPage(1);
                                 }}
-                                className="w-full pl-12 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                                className="search-input w-full pl-12 pr-10 py-2.5 rounded-full bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:outline-none transition-all"
                             />
+                            {/* UI ENHANCEMENT: Clear button when there's text */}
+                            {searchTerm && (
+                                <button
+                                    onClick={() => { setSearchTerm(''); setPage(1); }}
+                                    className="search-clear-btn absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full text-gray-400 hover:text-white"
+                                    aria-label="Clear search"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            )}
                         </div>
 
                         {/* Sort and filter controls */}
@@ -1152,7 +1310,7 @@ export default function App() {
                                     setSortBy(e.target.value);
                                     setPage(1);
                                 }}
-                                className="px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent cursor-pointer"
+                                className="px-4 py-2.5 rounded-full bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer transition-all"
                             >
                                 <option value="created_at" className="bg-gray-800">Newest First</option>
                                 <option value="upvotes" className="bg-gray-800">Most Upvoted</option>
@@ -1161,32 +1319,32 @@ export default function App() {
 
                             <button
                                 onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
-                                className="px-4 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                                className="px-3 py-2.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-200"
                                 title={sortOrder === 'desc' ? 'Descending' : 'Ascending'}
                             >
-                                <svg className={`w-5 h-5 text-gray-400 transform transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className={`w-5 h-5 text-gray-400 transform transition-transform duration-300 ${sortOrder === 'asc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                 </svg>
                             </button>
 
                             <button
                                 onClick={() => setShowFavoritesOnly(prev => !prev)}
-                                className={`px-5 py-3 rounded-xl transition-all flex items-center space-x-2 ${showFavoritesOnly
-                                    ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-lg'
+                                className={`px-4 py-2.5 rounded-full transition-all duration-200 flex items-center space-x-2 ${showFavoritesOnly
+                                    ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-lg shadow-yellow-500/20'
                                     : 'bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10'
                                 }`}
                             >
                                 <svg className="w-5 h-5" fill={showFavoritesOnly ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                                 </svg>
-                                <span className="hidden sm:inline">{favorites.length}</span>
+                                <span className="hidden sm:inline text-sm font-medium">{favorites.length}</span>
                             </button>
                         </div>
                     </div>
 
                     {/* Subreddit filter chips */}
                     {subredditStats.length > 0 && (
-                        <div className="mt-4 overflow-x-auto pb-2">
+                        <div className="mt-4">
                             <SubredditChips
                                 subreddits={subredditStats}
                                 selected={selectedSubreddit}
@@ -1348,6 +1506,17 @@ export default function App() {
                 isOpen={showShortcuts}
                 onClose={() => setShowShortcuts(false)}
             />
+
+            {/* UI ENHANCEMENT: Back to top floating button */}
+            <button
+                className={`back-to-top ${showBackToTop ? 'visible' : ''}`}
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                aria-label="Back to top"
+            >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                </svg>
+            </button>
         </div>
     );
 }
